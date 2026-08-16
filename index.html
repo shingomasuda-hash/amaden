@@ -475,6 +475,23 @@ const saveStore = (patch) => {
 };
 
 /* ============================================================
+   合言葉ゲート（暫定の入場制限）
+   ⚠️ これは本物のセキュリティではありません。ページのソースを見れば
+   誰でも合言葉が分かります。「知らない人がURLを偶然踏んでも中身が
+   見えない」程度の簡易な足止めです。変更する場合はこの定数を書き換えて
+   npm run build してください。本物のアクセス制限が必要な場合は
+   README の「GitHubアカウントでのアクセス制限」を参照してください。
+   ============================================================ */
+const ACCESS_CODE = "amaden2026";
+const ACCESS_KEY = "amaden_access_unlocked_v1";
+
+/* 先方リンク用のランダムトークン生成（管理番号を推測されないようにする） */
+const genToken = () => {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+  return Array.from({ length: 16 }, () => "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]).join("");
+};
+
+/* ============================================================
    読み取り結果（近畿テクノ 26MT1020B を確認対象として使用）
    box: 左パネルのモック帳票上でハイライトするセルID
    ============================================================ */
@@ -782,7 +799,7 @@ function CaseChatPanel({ thread, onSend, viewerRole, currentUserName, onToggleAi
 }
 
 /* 先方向けポータル：ログイン不要・URLに案件番号を含む簡易リンクで開く想定 */
-function CustomerPortal({ theCase, thread, onSend, onBackToStaff }) {
+function CustomerPortal({ theCase, thread, onSend, onBackToStaff, disabled }) {
   const st = theCase ? STATUS[theCase.status] : null;
   const aiActions = [
     { id: "check-status", label: "案件の処理状況を確認する" },
@@ -806,7 +823,11 @@ function CustomerPortal({ theCase, thread, onSend, onBackToStaff }) {
         </div>
       </header>
       <main className="mx-auto px-6 py-6" style={{ maxWidth: 900 }} aria-label="お客様ポータル">
-        {!theCase ? (
+        {disabled ? (
+          <Card>
+            <div className="text-sm" style={{ color: C.ink }}>このリンクは現在無効化されています。担当者にご確認ください。</div>
+          </Card>
+        ) : !theCase ? (
           <Card>
             <div className="text-sm" style={{ color: C.ink }}>このリンクに対応する案件が見つかりませんでした。担当者に発行し直しをご依頼ください。</div>
           </Card>
@@ -1021,7 +1042,7 @@ function Dashboard({ cases, owners, threads, onNew, onOpen, onOwnerChange, onAdd
 /* ============================================================
    案件の履歴・チャット画面（社内向け）
    ============================================================ */
-function CaseChatScreen({ theCase, thread, currentUserName, onSend, onToggleAi, onCopyLink, onBack }) {
+function CaseChatScreen({ theCase, thread, currentUserName, linkEnabled, onSend, onToggleAi, onCopyLink, onToggleLink, onBack }) {
   return (
     <div className="mx-auto px-8 py-6" style={{ maxWidth: 900 }}>
       <div className="flex items-center justify-between mb-4">
@@ -1030,7 +1051,12 @@ function CaseChatScreen({ theCase, thread, currentUserName, onSend, onToggleAi, 
           <h1 className="text-lg font-semibold" style={{ color: C.ink }}>{theCase?.customer} 様とのやり取り</h1>
           <div className="text-xs font-mono mt-0.5" style={{ color: C.sub }}>{theCase?.ctrl}</div>
         </div>
-        <Btn variant="outline" icon={Link2} onClick={() => onCopyLink(theCase)}>先方用リンクをコピー</Btn>
+        <div className="flex items-center gap-2">
+          <Btn variant="outline" icon={Link2} onClick={() => onCopyLink(theCase)}>先方用リンクをコピー</Btn>
+          <Btn variant={linkEnabled ? "outline" : "danger"} icon={Lock} onClick={() => onToggleLink(theCase)}>
+            {linkEnabled ? "リンクを無効化" : "リンクを有効化"}
+          </Btn>
+        </div>
       </div>
       <Card pad={false} style={{ height: 560 }} className="flex flex-col">
         <div className="p-4 flex-1 min-h-0">
@@ -2039,6 +2065,43 @@ function Done({ theCase, toast, onHome }) {
 }
 
 /* ============================================================
+   合言葉ゲート（暫定の入場制限・本物のセキュリティではない）
+   ============================================================ */
+function AccessGate({ onUnlock }) {
+  const [code, setCode] = useState("");
+  const [err, setErr] = useState(false);
+  const submit = () => {
+    if (code.trim() === ACCESS_CODE) {
+      try { window.localStorage.setItem(ACCESS_KEY, "1"); } catch (e) {}
+      onUnlock();
+    } else {
+      setErr(true);
+    }
+  };
+  return (
+    <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "#f0f2f5" }}>
+      <Card className="w-full" style={{ maxWidth: 440 }}>
+        <div className="text-center mb-5">
+          <div className="w-12 h-12 rounded mx-auto flex items-center justify-center mb-3" style={{ backgroundColor: C.navy }}><Lock size={22} className="text-white" /></div>
+          <h1 className="text-base font-semibold" style={{ color: C.ink }}>社内システムへのアクセス</h1>
+          <p className="text-xs mt-1" style={{ color: C.sub }}>社内で共有している合言葉を入力してください。</p>
+        </div>
+        <input value={code} onChange={e => { setCode(e.target.value); setErr(false); }}
+          onKeyDown={e => e.key === "Enter" && submit()}
+          type="password" placeholder="合言葉"
+          className="w-full rounded border px-3 py-2 text-sm mb-2" style={{ borderColor: err ? "#dc2626" : C.line2, color: C.ink }} />
+        {err && <div className="text-xs mb-3" style={{ color: "#dc2626" }}>合言葉が違います。担当者にご確認ください。</div>}
+        <Btn variant="primary" size="lg" onClick={submit}>入る</Btn>
+        <div className="mt-4 flex items-start gap-1.5 text-[11px] leading-snug" style={{ color: "#92826a", backgroundColor: "#fdf7ec", borderColor: "#f0e2c4" }}>
+          <Info size={12} className="mt-0.5 shrink-0" />
+          <span>これは簡易的な足止めであり、本物のアクセス制限ではありません。ページのソースを見れば合言葉は分かります。実運用では担当者ごとのログイン認証に置き換える予定です。</span>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ============================================================
    ログイン画面・管理者画面
    ============================================================ */
 function LoginScreen({ accounts, onLogin }) {
@@ -2065,7 +2128,7 @@ function LoginScreen({ accounts, onLogin }) {
   );
 }
 
-function AdminPanel({ accounts, setAccounts, logs, cases, threads, currentUser, onBack, onAddAccount, onDeleteAccount, onAudit, onOpenChat, onCopyLink, toast }) {
+function AdminPanel({ accounts, setAccounts, logs, cases, threads, caseLinks, currentUser, onBack, onAddAccount, onDeleteAccount, onAudit, onOpenChat, onCopyLink, onToggleLink, toast }) {
   const [tab, setTab] = useState("accounts");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -2203,13 +2266,14 @@ function AdminPanel({ accounts, setAccounts, logs, cases, threads, currentUser, 
           </div>
           <table className="w-full text-sm">
             <thead><tr className="text-left" style={{ color: C.sub, backgroundColor: C.panel }}>
-              {['管理番号','顧客名','担当者','直近のメッセージ','件数','AI操作','操作'].map(h => <th key={h} className="px-5 py-2.5 font-medium text-xs">{h}</th>)}
+              {['管理番号','顧客名','担当者','直近のメッセージ','件数','AI操作','リンク','操作'].map(h => <th key={h} className="px-5 py-2.5 font-medium text-xs">{h}</th>)}
             </tr></thead>
             <tbody>
               {cases.map(c => {
                 const th = threads?.[c.ctrl];
                 const msgs = (th?.messages || []).filter(m => m.role !== "system");
                 const last = msgs[msgs.length - 1];
+                const linkEnabled = caseLinks?.[c.ctrl]?.enabled !== false;
                 return (
                   <tr key={c.id} className="border-t" style={{ borderColor: C.line }}>
                     <td className="px-5 py-3 font-mono text-[13px]" style={{ color: C.navy }}>{c.ctrl}</td>
@@ -2223,6 +2287,11 @@ function AdminPanel({ accounts, setAccounts, logs, cases, threads, currentUser, 
                       <span className="text-[11px] px-1.5 py-0.5 rounded" style={th?.aiEnabled ? { color: "#1e7d45", backgroundColor: "#e4efe6" } : { color: C.sub, backgroundColor: C.panel }}>
                         {th?.aiEnabled ? "許可中" : "無効"}
                       </span>
+                    </td>
+                    <td className="px-5 py-3">
+                      <button onClick={() => onToggleLink(c)} className="text-[11px] px-1.5 py-0.5 rounded" style={linkEnabled ? { color: "#1e7d45", backgroundColor: "#e4efe6" } : { color: "#b91c1c", backgroundColor: "#fee2e2" }}>
+                        {linkEnabled ? "有効" : "無効化中"}
+                      </button>
                     </td>
                     <td className="px-5 py-3 flex items-center gap-1.5">
                       <Btn size="sm" variant="outline" icon={MessageSquare} onClick={() => onOpenChat(c)}>開く</Btn>
@@ -2298,6 +2367,10 @@ function App() {
   const [auditLogs, setAuditLogs] = useState(stored.auditLogs || AUDIT_LOGS_INIT);
   const [cases, setCases] = useState(stored.cases || CASES);
   const [threads, setThreads] = useState(stored.threads || CASE_THREADS_INIT);
+  const [caseLinks, setCaseLinks] = useState(stored.caseLinks || {}); // { [ctrl]: { token, enabled } } 先方リンクの推測されにくいトークン
+  const [unlocked, setUnlocked] = useState(() => {
+    try { return window.localStorage.getItem(ACCESS_KEY) === "1"; } catch (e) { return false; }
+  });
   const [activeCase, setActiveCase] = useState(null);
   const [fields, setFields] = useState(FIELDS_INIT);
   const [phraseSel, setPhraseSel] = useState({});
@@ -2313,6 +2386,7 @@ function App() {
   useEffect(() => { saveStore({ auditLogs }); }, [auditLogs]);
   useEffect(() => { saveStore({ cases }); }, [cases]);
   useEffect(() => { saveStore({ threads }); }, [threads]);
+  useEffect(() => { saveStore({ caseLinks }); }, [caseLinks]);
 
   // お客様ポータルのURL（#/customer/<管理番号>）を監視
   useEffect(() => {
@@ -2363,12 +2437,29 @@ function App() {
     setThreads(ts => ({ ...ts, [theCase.ctrl]: { ...(ts[theCase.ctrl] || { messages: [] }), aiEnabled: enabled } }));
     audit("AIエージェント操作の許可変更", theCase.ctrl, enabled ? "無効" : "許可", enabled ? "許可" : "無効");
   };
+  // 案件番号がそのままURLに出ないよう、案件ごとにランダムなトークンを発行してリンクに使う
+  const ensureLink = (ctrl) => {
+    let token = caseLinks[ctrl]?.token;
+    if (!token) {
+      token = genToken();
+      setCaseLinks(ls => ({ ...ls, [ctrl]: { token, enabled: true } }));
+    }
+    return token;
+  };
   const copyCustomerLink = (theCase) => {
     if (!theCase?.ctrl) return;
-    const url = `${window.location.origin}${window.location.pathname}#/customer/${encodeURIComponent(theCase.ctrl)}`;
+    const token = ensureLink(theCase.ctrl);
+    const url = `${window.location.origin}${window.location.pathname}#/customer/${token}`;
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(url).then(() => toast("先方用リンクをコピーしました")).catch(() => toast(url));
     } else { toast(url); }
+  };
+  const toggleLink = (theCase) => {
+    if (!theCase?.ctrl) return;
+    ensureLink(theCase.ctrl);
+    const wasEnabled = caseLinks[theCase.ctrl]?.enabled !== false;
+    setCaseLinks(ls => ({ ...ls, [theCase.ctrl]: { ...ls[theCase.ctrl], enabled: !wasEnabled } }));
+    audit("先方用リンク切替", theCase.ctrl, wasEnabled ? "有効" : "無効", wasEnabled ? "無効" : "有効");
   };
   const openChat = (c) => { setActiveCase(c); setScreen("casechat"); };
 
@@ -2406,17 +2497,26 @@ function App() {
   const canManage = currentUser?.role !== "閲覧者";
   const isAdmin = currentUser?.role === "管理者";
 
-  // お客様ポータル：ログイン不要でリンクから直接開く
+  // お客様ポータル：ログイン不要・合言葉不要でリンクから直接開く（先方に渡すためのリンクのため）
   if (customerRoute) {
-    const theCase = cases.find(c => c.ctrl === customerRoute) || null;
+    const linkEntry = Object.entries(caseLinks).find(([, v]) => v.token === customerRoute);
+    const ctrl = linkEntry?.[0];
+    const linkDisabled = !!ctrl && linkEntry[1]?.enabled === false;
+    const theCase = ctrl && !linkDisabled ? cases.find(c => c.ctrl === ctrl) || null : null;
     return (
       <CustomerPortal
         theCase={theCase}
+        disabled={linkDisabled}
         thread={theCase ? threadFor(theCase.ctrl) : null}
         onSend={(msg) => sendCaseMessage(theCase, msg)}
         onBackToStaff={loggedIn ? () => { window.location.hash = ""; setCustomerRoute(null); } : null}
       />
     );
+  }
+
+  // 合言葉ゲート：社内向け画面（ダッシュボード・管理者画面など）はここより先には進めない
+  if (!unlocked) {
+    return <AccessGate onUnlock={() => setUnlocked(true)} />;
   }
 
   if (!loggedIn) {
@@ -2465,8 +2565,8 @@ function App() {
       {/* 本体 */}
       <main>
         {screen === "dashboard" && <Dashboard cases={cases} owners={owners} threads={threads} canManage={canManage} onNew={newCase} onOpen={openCase} onOwnerChange={updateOwner} onAddOwner={(name) => addAccount(name, "", "担当者")} onAdmin={() => setScreen("admin")} onOpenChat={openChat} onCopyLink={copyCustomerLink} />}
-        {screen === "admin" && isAdmin && <AdminPanel accounts={accounts} setAccounts={setAccounts} logs={auditLogs} cases={cases} threads={threads} currentUser={currentUser} onBack={() => setScreen("dashboard")} onAddAccount={addAccount} onDeleteAccount={deleteAccount} onAudit={audit} onOpenChat={openChat} onCopyLink={copyCustomerLink} toast={toast} />}
-        {screen === "casechat" && <CaseChatScreen theCase={activeCase} thread={threadFor(activeCase?.ctrl)} currentUserName={currentUser?.name} onSend={sendCaseMessage} onToggleAi={toggleAi} onCopyLink={copyCustomerLink} onBack={goHome} />}
+        {screen === "admin" && isAdmin && <AdminPanel accounts={accounts} setAccounts={setAccounts} logs={auditLogs} cases={cases} threads={threads} caseLinks={caseLinks} currentUser={currentUser} onBack={() => setScreen("dashboard")} onAddAccount={addAccount} onDeleteAccount={deleteAccount} onAudit={audit} onOpenChat={openChat} onCopyLink={copyCustomerLink} onToggleLink={toggleLink} toast={toast} />}
+        {screen === "casechat" && <CaseChatScreen theCase={activeCase} thread={threadFor(activeCase?.ctrl)} currentUserName={currentUser?.name} linkEnabled={caseLinks[activeCase?.ctrl]?.enabled !== false} onSend={sendCaseMessage} onToggleAi={toggleAi} onCopyLink={copyCustomerLink} onToggleLink={toggleLink} onBack={goHome} />}
         {screen === "upload" && <UploadScreen theCase={activeCase} owners={owners} onStart={() => setScreen("processing")} onOwnerChange={updateOwner} onAddOwner={(name) => addAccount(name, "", "担当者")} onAudit={(a, t, b, af) => logActivity(a, t, b, af, activeCase?.ctrl)} />}
         {screen === "processing" && <Processing theCase={activeCase} onDone={() => setScreen("review")} />}
         {screen === "review" && <Review fields={fields} setFields={setFields} onNext={() => setScreen("work")} toast={toast} onAudit={(a, t, b, af) => logActivity(a, t, b, af, activeCase?.ctrl)} />}
