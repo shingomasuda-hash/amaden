@@ -1046,7 +1046,7 @@ function CaseChatScreen({ theCase, thread, currentUserName, onSend, onToggleAi, 
 /* ============================================================
    2. アップロード
    ============================================================ */
-function UploadScreen({ theCase, owners, onStart, onOwnerChange, onAddOwner }) {
+function UploadScreen({ theCase, owners, onStart, onOwnerChange, onAddOwner, onAudit }) {
   const [file, setFile] = useState(null);
   const [owner, setOwner] = useState(theCase?.owner || owners[0] || "");
   const [ownerToAdd, setOwnerToAdd] = useState("");
@@ -1169,7 +1169,7 @@ function UploadScreen({ theCase, owners, onStart, onOwnerChange, onAddOwner }) {
             ))}
           </Card>
 
-          <Btn variant="primary" size="lg" icon={Cpu} disabled={!file} onClick={onStart}>
+          <Btn variant="primary" size="lg" icon={Cpu} disabled={!file} onClick={() => { onAudit?.("AI読み取り開始", theCase?.ctrl || "新規案件", file?.name || "—", "読み取り開始"); onStart(); }}>
             AI読み取りを開始
           </Btn>
           {!file && <div className="text-[11px] text-center" style={{ color: C.sub }}>PDFを選択すると開始できます</div>}
@@ -1339,7 +1339,7 @@ function MockForm({ zoom, page, highlight }) {
    4. 読み取り結果確認（左右2カラム）
    ============================================================ */
 const REVIEW_FILTERS = ["要確認項目のみ", "全項目", "基本情報", "本体仕様", "作業内容", "測定値", "不具合・処置", "固定子コイル巻替"];
-function Review({ fields, setFields, onNext, toast }) {
+function Review({ fields, setFields, onNext, toast, onAudit }) {
   const [filter, setFilter] = useState("全項目");
   const [selId, setSelId] = useState("f10");
   const [zoom, setZoom] = useState(1);
@@ -1459,7 +1459,7 @@ function Review({ fields, setFields, onNext, toast }) {
                             <div className="mb-1" style={{ color: C.sub }}>候補から選択</div>
                             <div className="flex gap-2">
                               {f.candidates.map(cd => (
-                                <button key={cd} onClick={() => setField(f.id, { norm: cd, raw: cd })}
+                                <button key={cd} onClick={() => { const before = f.norm; setField(f.id, { norm: cd, raw: cd }); if (before !== cd) onAudit?.("候補選択", f.label, before, cd); }}
                                   className="px-2.5 py-1 rounded border text-sm font-mono"
                                   style={f.norm === cd ? { borderColor: C.navy, color: C.navy, backgroundColor: "#eef2f7" } : { borderColor: C.line2, color: C.ink }}>
                                   {cd}
@@ -1473,13 +1473,14 @@ function Review({ fields, setFields, onNext, toast }) {
                         <div className="col-span-2">
                           <div className="mb-1" style={{ color: C.sub }}>修正入力</div>
                           <input value={f.norm} onChange={e => setField(f.id, { norm: e.target.value })}
+                            onBlur={e => { if (e.target.value !== f.raw) onAudit?.("項目を手修正", f.label, f.raw, e.target.value); }}
                             className="w-full text-sm rounded border px-2.5 py-1.5" style={{ borderColor: C.line2, color: C.ink }} />
                         </div>
 
                         {/* アクション */}
                         <div className="col-span-2 flex items-center gap-2 pt-0.5">
-                          <Btn size="sm" variant="ok" icon={Check} onClick={() => { setField(f.id, { status: "confirmed" }); toast("項目を確定しました"); }}>確定</Btn>
-                          <Btn size="sm" variant="outline" icon={AlertTriangle} onClick={() => setField(f.id, { status: "review" })}>要確認に戻す</Btn>
+                          <Btn size="sm" variant="ok" icon={Check} onClick={() => { setField(f.id, { status: "confirmed" }); onAudit?.("項目確定", f.label, "要確認", f.norm); toast("項目を確定しました"); }}>確定</Btn>
+                          <Btn size="sm" variant="outline" icon={AlertTriangle} onClick={() => { setField(f.id, { status: "review" }); onAudit?.("要確認に差し戻し", f.label, "確定", "要確認"); }}>要確認に戻す</Btn>
                         </div>
                       </div>
                     )}
@@ -1499,7 +1500,7 @@ function Review({ fields, setFields, onNext, toast }) {
 /* ============================================================
    5. 作業内容・定型文選択
    ============================================================ */
-function WorkContent({ fields, phraseSel, setPhraseSel, onNext, toast }) {
+function WorkContent({ fields, phraseSel, setPhraseSel, onNext, toast, onAudit }) {
   const defects = fields.filter(f => f.defect);
   const set = (id, patch) => setPhraseSel(s => ({ ...s, [id]: { ...s[id], ...patch } }));
 
@@ -1588,7 +1589,7 @@ function WorkContent({ fields, phraseSel, setPhraseSel, onNext, toast }) {
                     <div className="text-xs rounded px-2 py-1" style={{ color: C.navy, backgroundColor: C.panel2 }}>
                       特記事項へ転記：<b>{cur.custom || (cur.mode === "raw" ? f.raw : `${cur.symptom} → ${cur.treat}`)}</b>
                     </div>
-                    <Btn size="sm" variant="ok" icon={Check} onClick={() => toast("特記事項を確定しました")}>この内容で確定</Btn>
+                    <Btn size="sm" variant="ok" icon={Check} onClick={() => { onAudit?.("特記事項確定", f.label, f.raw, cur.custom || (cur.mode === "raw" ? f.raw : `${cur.symptom} → ${cur.treat}`)); toast("特記事項を確定しました"); }}>この内容で確定</Btn>
                   </div>
                 </div>
               </div>
@@ -1604,7 +1605,7 @@ function WorkContent({ fields, phraseSel, setPhraseSel, onNext, toast }) {
 /* ============================================================
    6. 測定値確認
    ============================================================ */
-function Measurements({ measSel, setMeasSel, onNext, toast }) {
+function Measurements({ measSel, setMeasSel, onNext, toast, onAudit }) {
   const flagStyle = flag => flag === "low" ? { backgroundColor: "#fef2f2" } : flag === "mid" ? { backgroundColor: "#fffaf0" } : {};
   return (
     <div className="mx-auto px-8 py-5" style={{ maxWidth: 1440 }}>
@@ -1652,7 +1653,7 @@ function Measurements({ measSel, setMeasSel, onNext, toast }) {
                         <span style={{ color: "#b91c1c" }}>{r.name}：{r.reason}</span>
                         <span style={{ color: C.sub }}>候補</span>
                         {r.cands.map(cd => (
-                          <button key={cd} onClick={() => { setMeasSel(s => ({ ...s, [tbl.key + r.name]: cd })); toast(`${r.name} を ${cd} に確定`); }}
+                          <button key={cd} onClick={() => { setMeasSel(s => ({ ...s, [tbl.key + r.name]: cd })); onAudit?.("測定値候補選択", `${tbl.title} / ${r.name}`, r.reason, cd); toast(`${r.name} を ${cd} に確定`); }}
                             className="px-2 py-0.5 rounded border font-mono"
                             style={measSel[tbl.key + r.name] === cd ? { borderColor: C.navy, backgroundColor: "#eef2f7", color: C.navy } : { borderColor: C.line2, color: C.ink }}>
                             {cd} {r.unit}
@@ -1709,7 +1710,11 @@ function Preview({ sheets, setSheets, fields, setFields, activeCase, onNext, toa
     photoRwCaption: "固定子コイル巻替後の仕上がり確認",
   }));
 
-  const toggle = id => setSheets(ss => ss.map(s => s.id === id && !s.always ? { ...s, on: !s.on } : s));
+  const toggle = id => setSheets(ss => ss.map(s => {
+    if (s.id !== id || s.always) return s;
+    onAudit?.("出力シート変更", s.name, s.on ? "出力対象" : "出力対象外", !s.on ? "出力対象" : "出力対象外");
+    return { ...s, on: !s.on };
+  }));
   const selectedSheet = sheets.find(s => s.id === activeSheet) || sheets[0];
   useEffect(() => {
     if (!sheets.some(s => s.id === activeSheet)) setActiveSheet("cover");
@@ -1720,14 +1725,20 @@ function Preview({ sheets, setSheets, fields, setFields, activeCase, onNext, toa
     rpm: "f14", hz: "f15", maker: "f16", model: "f17", serial: "f18", bearingD: "f19", bearingB: "f20",
     rewindReason: "f50", wireSize: "f51", slotCount: "f52", connection: "f53"
   };
+  // 入力の度ではなく、フォーカスが外れた時点の差分だけを履歴に残す（1文字ごとに記録すると埋もれるため）
+  const focusValues = React.useRef({});
   const updateData = (key, val) => {
-    setPreviewData(d => {
-      const before = d[key] || "";
-      if (before !== val) onAudit?.("提出用プレビュー編集", `${activeCase?.ctrl || "新規案件"} / ${key}`, before, val);
-      return { ...d, [key]: val };
-    });
+    setPreviewData(d => ({ ...d, [key]: val }));
     if (fieldMap[key]) {
       setFields?.(fs => fs.map(x => x.id === fieldMap[key] ? { ...x, norm: val, status: "confirmed", conf: x.conf === "low" ? "mid" : x.conf } : x));
+    }
+  };
+  const handleFocus = (key) => { focusValues.current[key] = previewData[key] || ""; };
+  const handleBlur = (key) => {
+    const before = focusValues.current[key];
+    const after = previewData[key] || "";
+    if (before !== undefined && before !== after) {
+      onAudit?.("提出用プレビュー編集", `${activeCase?.ctrl || "新規案件"} / ${key}`, before, after);
     }
   };
 
@@ -1761,7 +1772,7 @@ function Preview({ sheets, setSheets, fields, setFields, activeCase, onNext, toa
           <h1 className="text-lg font-semibold" style={{ color: C.ink }}>提出用プレビュー</h1>
           <p className="text-xs mt-0.5" style={{ color: C.sub }}>右側のプレビュー上で、表紙以外のシートも確認・値変更できます。</p>
         </div>
-        <Btn variant="primary" icon={FileText} onClick={onNext}>Excel・PDFを生成</Btn>
+        <Btn variant="primary" icon={FileText} onClick={() => { onAudit?.("帳票生成", activeCase?.ctrl || "案件", "—", "Excel/PDF生成"); onNext(); }}>Excel・PDFを生成</Btn>
       </div>
 
       <div className="grid gap-4" style={{ gridTemplateColumns: "minmax(0,3fr) minmax(0,9fr)" }}>
@@ -1800,7 +1811,7 @@ function Preview({ sheets, setSheets, fields, setFields, activeCase, onNext, toa
 
           <div className="grid" style={{ gridTemplateColumns: "minmax(0,7.5fr) minmax(320px,3.5fr)", height: 590 }}>
             <div className="p-5 overflow-auto" style={{ backgroundColor: "#eef1f4" }}>
-              <ExcelPreview activeSheet={activeSheet} data={previewData} updateData={updateData} sheet={selectedSheet} />
+              <ExcelPreview activeSheet={activeSheet} data={previewData} updateData={updateData} onFocusField={handleFocus} onBlurField={handleBlur} sheet={selectedSheet} />
             </div>
             <div className="border-l p-4 overflow-auto" style={{ borderColor: C.line, backgroundColor: "#fff" }}>
               <div className="flex items-center justify-between mb-2">
@@ -1817,9 +1828,11 @@ function Preview({ sheets, setSheets, fields, setFields, activeCase, onNext, toa
                     <div className="text-[11px] mb-1" style={{ color: C.sub }}>{r.label}</div>
                     {r.long ? (
                       <textarea value={previewData[r.id] || ""} rows={3} onChange={e => updateData(r.id, e.target.value)}
+                        onFocus={() => handleFocus(r.id)} onBlur={() => handleBlur(r.id)}
                         className="w-full rounded border px-2.5 py-2 text-xs" style={{ borderColor: C.line2, color: C.ink }} />
                     ) : (
                       <input value={previewData[r.id] || ""} onChange={e => updateData(r.id, e.target.value)}
+                        onFocus={() => handleFocus(r.id)} onBlur={() => handleBlur(r.id)}
                         className="w-full rounded border px-2.5 py-2 text-sm" style={{ borderColor: C.line2, color: C.ink }} />
                     )}
                   </label>
@@ -1842,9 +1855,10 @@ function Preview({ sheets, setSheets, fields, setFields, activeCase, onNext, toa
 }
 
 /* 整備報告書シート別のExcel風プレビュー */
-function ExcelPreview({ activeSheet, data, updateData, sheet }) {
+function ExcelPreview({ activeSheet, data, updateData, onFocusField, onBlurField, sheet }) {
   const InputCell = ({ id, className = "", align = "left" }) => (
     <input value={data[id] || ""} onChange={e => updateData(id, e.target.value)}
+      onFocus={() => onFocusField?.(id)} onBlur={() => onBlurField?.(id)}
       className={`w-full bg-transparent outline-none ${className}`}
       style={{ color: "#1f2937", textAlign: align }} />
   );
@@ -2310,6 +2324,13 @@ function App() {
   const audit = (action, target, before = "—", after = "—") => {
     setAuditLogs(ls => [{ id: "l" + Date.now() + Math.random(), at: nowText(), user: currentUser?.name || "未ログイン", action, target, before: String(before || "—"), after: String(after || "—") }, ...ls]);
   };
+  // 「誰が・どこを」触ったかを、全社共通の変更履歴と、その案件のチャット/履歴タイムラインの両方に残す
+  const logActivity = (action, target, before, after, ctrl) => {
+    audit(action, target, before, after);
+    if (ctrl) {
+      pushCaseMessage(ctrl, { role: "system", author: "システム", text: `${currentUser?.name || "担当者"} が「${action}」を行いました（${target}${after && after !== "—" ? ` → ${after}` : ""}）` });
+    }
+  };
   const addAccount = (name, email = "", role = "担当者") => {
     if (accounts.some(a => a.name === name)) { toast(`${name} は既に登録済みです`); return; }
     setAccounts(as => [...as, { id: "u" + Date.now(), name, email, role, status: "有効", created: nowText().slice(0,10) }]);
@@ -2331,7 +2352,12 @@ function App() {
       return { ...ts, [ctrl]: { ...cur, messages: [...cur.messages, { id: "m" + Date.now() + Math.random(), at: nowText(), ...msg }] } };
     });
   };
-  const sendCaseMessage = (theCase, msg) => { if (theCase?.ctrl) pushCaseMessage(theCase.ctrl, msg); };
+  const sendCaseMessage = (theCase, msg) => {
+    if (!theCase?.ctrl) return;
+    pushCaseMessage(theCase.ctrl, msg);
+    const preview = msg.text.length > 40 ? msg.text.slice(0, 40) + "…" : msg.text;
+    setAuditLogs(ls => [{ id: "l" + Date.now() + Math.random(), at: nowText(), user: msg.author, action: "メッセージ送信", target: theCase.ctrl, before: "—", after: preview }, ...ls]);
+  };
   const toggleAi = (theCase, enabled) => {
     if (!theCase?.ctrl) return;
     setThreads(ts => ({ ...ts, [theCase.ctrl]: { ...(ts[theCase.ctrl] || { messages: [] }), aiEnabled: enabled } }));
@@ -2351,7 +2377,7 @@ function App() {
       const targetCase = cases.find(c => c.id === caseId);
       if (targetCase && targetCase.owner !== owner) {
         audit("担当者変更", targetCase.ctrl, targetCase.owner || "未設定", owner || "未設定");
-        pushCaseMessage(targetCase.ctrl, { role: "system", author: "システム", text: `担当者が「${targetCase.owner || "未設定"}」から「${owner || "未設定"}」に変更されました。` });
+        pushCaseMessage(targetCase.ctrl, { role: "system", author: "システム", text: `${currentUser?.name || "担当者"} が担当者を「${targetCase.owner || "未設定"}」から「${owner || "未設定"}」に変更しました。` });
       }
       setCases(cs => cs.map(c => c.id === caseId ? { ...c, owner } : c));
     }
@@ -2362,12 +2388,17 @@ function App() {
     setActiveCase(c);
     setFields(FIELDS_INIT.map(f => ({ ...f })));
     setScreen(at);
+    if (c?.ctrl) {
+      audit("案件を開いた", c.ctrl, "—", STEPS.find(s => s.id === at)?.name || at);
+      pushCaseMessage(c.ctrl, { role: "system", author: "システム", text: `${currentUser?.name || "担当者"} が案件を開きました（${STEPS.find(s => s.id === at)?.name || at}）。` });
+    }
   };
   const newCase = () => {
     const c = { id: "c" + Date.now(), ctrl: "26MT1020B", customer: "近畿テクノ㈱エレベータ", kind: "交流", rewind: true, pages: 8, owner: owners[0] || "", status: "review", date: nowText().slice(0,10) };
     setActiveCase(c);
     setFields(FIELDS_INIT.map(f => ({ ...f })));
     setScreen("upload");
+    audit("案件登録", c.ctrl, "—", c.customer);
   };
   const goHome = () => { setScreen("dashboard"); setActiveCase(null); };
 
@@ -2436,12 +2467,12 @@ function App() {
         {screen === "dashboard" && <Dashboard cases={cases} owners={owners} threads={threads} canManage={canManage} onNew={newCase} onOpen={openCase} onOwnerChange={updateOwner} onAddOwner={(name) => addAccount(name, "", "担当者")} onAdmin={() => setScreen("admin")} onOpenChat={openChat} onCopyLink={copyCustomerLink} />}
         {screen === "admin" && isAdmin && <AdminPanel accounts={accounts} setAccounts={setAccounts} logs={auditLogs} cases={cases} threads={threads} currentUser={currentUser} onBack={() => setScreen("dashboard")} onAddAccount={addAccount} onDeleteAccount={deleteAccount} onAudit={audit} onOpenChat={openChat} onCopyLink={copyCustomerLink} toast={toast} />}
         {screen === "casechat" && <CaseChatScreen theCase={activeCase} thread={threadFor(activeCase?.ctrl)} currentUserName={currentUser?.name} onSend={sendCaseMessage} onToggleAi={toggleAi} onCopyLink={copyCustomerLink} onBack={goHome} />}
-        {screen === "upload" && <UploadScreen theCase={activeCase} owners={owners} onStart={() => setScreen("processing")} onOwnerChange={updateOwner} onAddOwner={(name) => addAccount(name, "", "担当者")} />}
+        {screen === "upload" && <UploadScreen theCase={activeCase} owners={owners} onStart={() => setScreen("processing")} onOwnerChange={updateOwner} onAddOwner={(name) => addAccount(name, "", "担当者")} onAudit={(a, t, b, af) => logActivity(a, t, b, af, activeCase?.ctrl)} />}
         {screen === "processing" && <Processing theCase={activeCase} onDone={() => setScreen("review")} />}
-        {screen === "review" && <Review fields={fields} setFields={setFields} onNext={() => setScreen("work")} toast={toast} />}
-        {screen === "work" && <WorkContent fields={fields} phraseSel={phraseSel} setPhraseSel={setPhraseSel} onNext={() => setScreen("meas")} toast={toast} />}
-        {screen === "meas" && <Measurements measSel={measSel} setMeasSel={setMeasSel} onNext={() => setScreen("preview")} toast={toast} />}
-        {screen === "preview" && <Preview sheets={sheets} setSheets={setSheets} fields={fields} setFields={setFields} activeCase={activeCase} toast={toast} onAudit={audit} onNext={() => setScreen("done")} />}
+        {screen === "review" && <Review fields={fields} setFields={setFields} onNext={() => setScreen("work")} toast={toast} onAudit={(a, t, b, af) => logActivity(a, t, b, af, activeCase?.ctrl)} />}
+        {screen === "work" && <WorkContent fields={fields} phraseSel={phraseSel} setPhraseSel={setPhraseSel} onNext={() => setScreen("meas")} toast={toast} onAudit={(a, t, b, af) => logActivity(a, t, b, af, activeCase?.ctrl)} />}
+        {screen === "meas" && <Measurements measSel={measSel} setMeasSel={setMeasSel} onNext={() => setScreen("preview")} toast={toast} onAudit={(a, t, b, af) => logActivity(a, t, b, af, activeCase?.ctrl)} />}
+        {screen === "preview" && <Preview sheets={sheets} setSheets={setSheets} fields={fields} setFields={setFields} activeCase={activeCase} toast={toast} onAudit={(a, t, b, af) => logActivity(a, t, b, af, activeCase?.ctrl)} onNext={() => setScreen("done")} />}
         {screen === "done" && <Done theCase={activeCase} toast={toast} onHome={goHome} />}
       </main>
 
