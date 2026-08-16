@@ -1,0 +1,15 @@
+{
+  "name": "amaden-seibi-ui-prototype",
+  "private": true,
+  "version": "1.0.0",
+  "description": "整備報告書【モータ】自動作成システム UIプロトタイプ",
+  "scripts": {
+    "build": "node scripts/build.js"
+  },
+  "devDependencies": {
+    "@babel/standalone": "7.23.2",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "tailwindcss": "^3"
+  }
+}

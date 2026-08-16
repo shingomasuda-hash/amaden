@@ -1,0 +1,2156 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=1440, initial-scale=1"/>
+<title>整備報告書【モータ】自動作成システム — UIプロトタイプ</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js" crossorigin></script>
+<style>
+  html,body{margin:0;background:#f0f2f5;font-family:'Hiragino Kaku Gothic ProN','Yu Gothic',Meiryo,sans-serif;}
+  *{box-sizing:border-box;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:6px;}
+  ::-webkit-scrollbar-track{background:#eef2f7;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+
+const { useState, useEffect, useMemo } = React;
+
+const Svg = ({ size = 16, className, style, children }) => (
+  React.createElement("svg", {
+    xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24",
+    fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round",
+    strokeLinejoin: "round", className, style
+  }, children)
+);
+const LayoutDashboard = (p) => <Svg {...p}><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></Svg>;
+const Upload = (p) => <Svg {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></Svg>;
+const Cpu = (p) => <Svg {...p}><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M9 2v2M15 20v2M9 20v2M2 15h2M2 9h2M20 15h2M20 9h2"/></Svg>;
+const FileCheck2 = (p) => <Svg {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></Svg>;
+const ClipboardList = (p) => <Svg {...p}><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4M12 16h4M8 11h.01M8 16h.01"/></Svg>;
+const Ruler = (p) => <Svg {...p}><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2M11.5 9.5l2-2M8.5 6.5l2-2M17.5 15.5l2-2"/></Svg>;
+const Eye = (p) => <Svg {...p}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></Svg>;
+const CheckCircle2 = (p) => <Svg {...p}><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></Svg>;
+const FileSpreadsheet = (p) => <Svg {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2M8 17h2M14 13h2M14 17h2"/></Svg>;
+const FileText = (p) => <Svg {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></Svg>;
+const ChevronLeft = (p) => <Svg {...p}><polyline points="15 18 9 12 15 6"/></Svg>;
+const ChevronRight = (p) => <Svg {...p}><polyline points="9 18 15 12 9 6"/></Svg>;
+const ZoomIn = (p) => <Svg {...p}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></Svg>;
+const ZoomOut = (p) => <Svg {...p}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></Svg>;
+const Search = (p) => <Svg {...p}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></Svg>;
+const AlertTriangle = (p) => <Svg {...p}><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></Svg>;
+const Check = (p) => <Svg {...p}><polyline points="20 6 9 17 4 12"/></Svg>;
+const X = (p) => <Svg {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></Svg>;
+const Plus = (p) => <Svg {...p}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Svg>;
+const Filter = (p) => <Svg {...p}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></Svg>;
+const Image = (p) => <Svg {...p}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></Svg>;
+const RotateCcw = (p) => <Svg {...p}><path d="M3 2v6h6"/><path d="M3.51 15a9 9 0 1 0 .49-9.36L3 8"/></Svg>;
+const ArrowRight = (p) => <Svg {...p}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></Svg>;
+const Info = (p) => <Svg {...p}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></Svg>;
+const FolderOpen = (p) => <Svg {...p}><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6A2 2 0 0 1 18.46 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></Svg>;
+const ExternalLink = (p) => <Svg {...p}><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></Svg>;
+const UserPlus = (p) => <Svg {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></Svg>;
+const ShieldCheck = (p) => <Svg {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></Svg>;
+const History = (p) => <Svg {...p}><path d="M3 3v5h5"/><path d="M3.05 13a9 9 0 1 0 2.64-7.36L3 8"/><path d="M12 7v5l4 2"/></Svg>;
+const LogIn = (p) => <Svg {...p}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></Svg>;
+const LogOut = (p) => <Svg {...p}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></Svg>;
+const Users = (p) => <Svg {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></Svg>;
+const MessageSquare = (p) => <Svg {...p}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></Svg>;
+const Send = (p) => <Svg {...p}><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></Svg>;
+const Link2 = (p) => <Svg {...p}><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></Svg>;
+const Sparkles = (p) => <Svg {...p}><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></Svg>;
+const Trash2 = (p) => <Svg {...p}><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></Svg>;
+const Lock = (p) => <Svg {...p}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></Svg>;
+
+
+/* ============================================================
+   デザイントークン（濃紺・白・グレー中心／過度な装飾なし）
+   ============================================================ */
+const C = {
+  navy: "#16324f",
+  navyDark: "#0f2740",
+  ink: "#1f2937",
+  sub: "#64748b",
+  line: "#e2e8f0",
+  line2: "#cbd5e1",
+  surface: "#ffffff",
+  panel: "#f5f7fa",
+  panel2: "#eef2f7",
+};
+const STATUS = {
+  review:   { label: "確認待ち", fg: "#b45309", bg: "#fef3c7", dot: "#d97706" },
+  process:  { label: "処理中",   fg: "#1d4ed8", bg: "#dbeafe", dot: "#2563eb" },
+  done:     { label: "完了",     fg: "#047857", bg: "#d1fae5", dot: "#059669" },
+  error:    { label: "エラー",   fg: "#b91c1c", bg: "#fee2e2", dot: "#dc2626" },
+};
+const CONF = {
+  high: { label: "高信頼",       fg: "#047857", bg: "#d1fae5", ring: "#10b981" },
+  mid:  { label: "確認推奨",     fg: "#b45309", bg: "#fef3c7", ring: "#f59e0b" },
+  low:  { label: "読取不能/候補", fg: "#b91c1c", bg: "#fee2e2", ring: "#ef4444" },
+  na:   { label: "未記入/対象外", fg: "#64748b", bg: "#f1f5f9", ring: "#94a3b8" },
+};
+
+/* ============================================================
+   サンプル案件（添付PDFの顧客名・管理番号を使用）
+   ============================================================ */
+const CASES = [
+  { id: "k", ctrl: "26MT1020B", customer: "近畿テクノ㈱エレベータ", kind: "交流", rewind: true,
+    status: "review", date: "2025-12-27", owner: "増田 慎吾", spec: "55kW / 220・440V / 4P",
+    pages: 8, reviewCount: 5 },
+  { id: "h", ctrl: "26MT0427", customer: "兵庫パルプ工業㈱", kind: "交流", rewind: true,
+    status: "done", date: "2026-04-22", owner: "田中 由紀", spec: "3.7kW / 220V / 2P",
+    pages: 8, reviewCount: 0 },
+  { id: "w", ctrl: "26MT1215", customer: "川崎油工㈱", kind: "交流", rewind: true,
+    status: "process", date: "2026-02-24", owner: "佐藤 健", spec: "160kW / 440V / 4P",
+    pages: 8, reviewCount: 5 },
+  { id: "e", ctrl: "26MT0902", customer: "山本製鋼㈱", kind: "直流", rewind: false,
+    status: "error", date: "2026-03-08", owner: "佐藤 健", spec: "—",
+    pages: 6, reviewCount: 0, err: "3ページ目の傾き補正に失敗（再スキャン推奨）" },
+];
+
+const OWNERS = ["増田 慎吾", "田中 由紀", "佐藤 健", "山本 太郎"];
+
+const ACCOUNTS_INIT = [
+  { id: "u1", name: "増田 慎吾", email: "masuda@amaden-ss.co.jp", role: "管理者", status: "有効", created: "2026-01-05" },
+  { id: "u2", name: "田中 由紀", email: "tanaka@amaden-ss.co.jp", role: "担当者", status: "有効", created: "2026-01-10" },
+  { id: "u3", name: "佐藤 健", email: "sato@amaden-ss.co.jp", role: "担当者", status: "有効", created: "2026-01-12" },
+  { id: "u4", name: "山本 太郎", email: "yamamoto@amaden-ss.co.jp", role: "閲覧者", status: "停止", created: "2026-02-01" },
+  { id: "u5", name: "鈴木 花子", email: "suzuki@amaden-ss.co.jp", role: "閲覧者", status: "有効", created: "2026-02-10" },
+];
+
+const AUDIT_LOGS_INIT = [
+  { id: "l1", at: "2026-04-22 10:18", user: "増田 慎吾", action: "ログイン", target: "システム", before: "—", after: "成功" },
+  { id: "l2", at: "2026-04-22 10:24", user: "増田 慎吾", action: "担当者変更", target: "26MT0427", before: "未設定", after: "田中 由紀" },
+  { id: "l3", at: "2026-04-22 10:31", user: "田中 由紀", action: "提出用プレビュー編集", target: "26MT0427 / 作業完了日", before: "2026 / 3 / 17", after: "2026 / 4 / 22" },
+];
+
+/* ============================================================
+   案件ごとのやり取り（チャット＋履歴）
+   role: "internal"（社内担当者） / "customer"（先方） / "system"（自動記録）
+   ============================================================ */
+const CASE_THREADS_INIT = {
+  "26MT1020B": {
+    aiEnabled: true,
+    messages: [
+      { id: "m1", role: "system", author: "システム", text: "案件を登録しました（近畿テクノ㈱エレベータ）。", at: "2025-12-27 09:10" },
+      { id: "m2", role: "internal", author: "増田 慎吾", text: "受入しました。機番の末尾が判読しづらいので現物を確認して折り返します。", at: "2025-12-27 09:32" },
+      { id: "m3", role: "customer", author: "近畿テクノ㈱エレベータ 様", text: "よろしくお願いします。ローター軸の摩耗の件、費用感も分かれば教えてください。", at: "2025-12-27 14:05" },
+      { id: "m4", role: "internal", author: "増田 慎吾", text: "承知しました。溶射加工での補修を想定しています。整備報告書の確定後に見積もりを共有します。", at: "2025-12-28 10:12" },
+    ],
+  },
+};
+
+const nowText = () => {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+/* ============================================================
+   ブラウザ保存（localStorage）
+   このUIプロトタイプにはサーバーがないため、社内・先方どちらの
+   入力もこのブラウザの中だけに保存されます（他の端末とは同期しません）。
+   本番実装では、この保存層をサーバーAPI＋データベースに置き換えます。
+   ============================================================ */
+const STORAGE_KEY = "amaden_proto_state_v1";
+const loadStore = () => {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+};
+const saveStore = (patch) => {
+  try {
+    const cur = loadStore();
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...cur, ...patch }));
+  } catch (e) { /* ストレージ無効時は何もしない（プロトタイプの表示は継続） */ }
+};
+
+/* ============================================================
+   読み取り結果（近畿テクノ 26MT1020B を確認対象として使用）
+   box: 左パネルのモック帳票上でハイライトするセルID
+   ============================================================ */
+const FIELDS_INIT = [
+  // --- 基本情報 ---
+  { id: "f1", grp: "基本情報", label: "顧客名", raw: "近畿テクノ㈱エレベータ", norm: "近畿テクノ㈱エレベータ", unit: "", conf: "high", sheet: "表紙", target: "顧客名 (L13)", status: "confirmed", box: "customer" },
+  { id: "f2", grp: "基本情報", label: "管理番号", raw: "26MT1020", norm: "1020", unit: "", conf: "high", sheet: "表紙", target: "管理No (AJ51)", status: "confirmed", note: "年2桁+MTはフォーム印字済のため除去", box: "ctrl" },
+  { id: "f3", grp: "基本情報", label: "受入日", raw: "2025.12.27", norm: "2025-12-27", unit: "", conf: "high", sheet: "—", target: "—", status: "confirmed", box: "recv" },
+  { id: "f4", grp: "基本情報", label: "作業完了日", raw: "2026.3.17", norm: "2026 / 3 / 17", unit: "", conf: "high", sheet: "表紙", target: "完了 年/月/日 (W36/AI36/AQ36)", status: "confirmed" },
+  // --- 本体仕様 ---
+  { id: "f10", grp: "本体仕様", label: "出力", raw: "55", norm: "55", unit: "kW", conf: "high", sheet: "ページ①（交流）", target: "出力 (G4)", status: "confirmed", box: "kw" },
+  { id: "f11", grp: "本体仕様", label: "電圧", raw: "220/440", norm: "220/440", unit: "V", conf: "high", sheet: "ページ①（交流）", target: "電圧 (V4)", status: "confirmed", box: "v" },
+  { id: "f12", grp: "本体仕様", label: "極数", raw: "4", norm: "4", unit: "P", conf: "high", sheet: "ページ①（交流）", target: "極数 (AL4)", status: "confirmed", box: "p" },
+  { id: "f13", grp: "本体仕様", label: "電流", raw: "179/90", norm: "179/90", unit: "A", conf: "high", sheet: "ページ①（交流）", target: "電流 (BA4)", status: "confirmed", box: "a" },
+  { id: "f14", grp: "本体仕様", label: "回転数", raw: "1760", norm: "1760", unit: "rpm", conf: "high", sheet: "ページ①（交流）", target: "回転数 (G6)", status: "confirmed", box: "rpm" },
+  { id: "f15", grp: "本体仕様", label: "周波数", raw: "60", norm: "60", unit: "Hz", conf: "high", sheet: "ページ①（交流）", target: "周波数 (G8)", status: "confirmed", box: "hz" },
+  { id: "f16", grp: "本体仕様", label: "製造会社", raw: "フジ", norm: "フジ", unit: "", conf: "high", sheet: "ページ①（交流）", target: "製造 (G10)", status: "confirmed", box: "maker" },
+  { id: "f17", grp: "本体仕様", label: "形式", raw: "MRA5205A", norm: "MRA5205A", unit: "", conf: "high", sheet: "ページ①（交流）", target: "形式 (V10)", status: "confirmed", box: "model" },
+  { id: "f18", grp: "本体仕様", label: "機番", raw: "89118752MS2", norm: "89118752MS2", unit: "", conf: "mid", sheet: "ページ①（交流）", target: "製番 (AS10)", status: "review", reason: "末尾 MS2 / M82 の判読が不明瞭", candidates: ["89118752MS2", "89118752M82"], box: "serial" },
+  { id: "f19", grp: "本体仕様", label: "ベアリングD", raw: "6315ZZ", norm: "6315ZZ", unit: "", conf: "high", sheet: "ページ①（交流）", target: "ベアD (AP6)", status: "confirmed", box: "brD" },
+  { id: "f20", grp: "本体仕様", label: "ベアリングB", raw: "6212ZZ", norm: "6212ZZ", unit: "", conf: "high", sheet: "ページ①（交流）", target: "ベアB (AP8)", status: "confirmed", box: "brB" },
+  // --- 作業内容 / 不具合・処置 ---
+  { id: "f30", grp: "作業内容", label: "種類：全閉外扇型", raw: "☑", norm: "◎", unit: "", conf: "high", sheet: "ページ①（交流）", target: "種類 (K25)", status: "confirmed", box: "type" },
+  { id: "f31", grp: "作業内容", label: "付属品：プーリー", raw: "☑", norm: "◎", unit: "", conf: "high", sheet: "ページ①（交流）", target: "付属品 (AM25)", status: "confirmed" },
+  { id: "f32", grp: "作業内容", defect: true, label: "不良個所① ローター軸(D)", raw: "ローター軸(D)ベアリング部 摩耗 → 溶射加工", norm: "（定型文照合）", unit: "", conf: "mid", sheet: "ページ①（交流）", target: "特記事項 (D75/AA75)", status: "review", reason: "リスト報告書の定型文候補から選択が必要" },
+  { id: "f33", grp: "作業内容", defect: true, label: "不良個所③ 固定子コイル", raw: "固定子コイル 絶縁劣化 → 巻替", norm: "（定型文照合）", unit: "", conf: "mid", sheet: "ページ①（交流）", target: "特記事項 (D77/AA77)", status: "review", reason: "リスト報告書の定型文候補から選択が必要" },
+  // --- 測定値（代表を数点。詳細は測定値確認画面）---
+  { id: "f40", grp: "測定値", label: "絶縁抵抗 受入", raw: "2000", norm: "2000", unit: "MΩ", conf: "high", sheet: "ページ①（交流）", target: "絶縁 (P137)", status: "confirmed" },
+  { id: "f41", grp: "測定値", label: "ジャーナル(負荷) 整備前", raw: "75.009", norm: "75.009", unit: "mm", conf: "high", sheet: "ページ①（交流）", target: "ジャーナル (T185)", status: "confirmed" },
+  { id: "f42", grp: "測定値", label: "拘束試験 U相(整備後)", raw: "17〔7/9〕", norm: "", unit: "A", conf: "low", sheet: "ページ①（交流）", target: "回転試験 (T272)", status: "review", reason: "受入179と整備177が重なり判読困難", candidates: ["177", "179"] },
+  { id: "f43", grp: "測定値", label: "分解時 湿度", raw: "5 7", norm: "57", unit: "%", conf: "mid", sheet: "ページ①（交流）", target: "環境 (I94)", status: "review", reason: "湿度表記が判読しにくい", candidates: ["57", "5.7"] },
+  // --- 固定子コイル巻替 ---
+  { id: "f50", grp: "固定子コイル巻替", label: "巻替理由", raw: "客先希望 ☑", norm: "客先希望", unit: "", conf: "high", sheet: "固定子コイル巻替", target: "巻替理由", status: "confirmed" },
+  { id: "f51", grp: "固定子コイル巻替", label: "線径", raw: "φ1.3/1.2", norm: "1.3/1.2", unit: "φ", conf: "high", sheet: "固定子コイル巻替", target: "線径", status: "confirmed" },
+  { id: "f52", grp: "固定子コイル巻替", label: "スロット数", raw: "48", norm: "48", unit: "", conf: "high", sheet: "固定子コイル巻替", target: "スロット数 (AQ23)", status: "confirmed" },
+  { id: "f53", grp: "固定子コイル巻替", label: "結線", raw: "220Y/440Δ", norm: "220Y/440Δ", unit: "", conf: "high", sheet: "固定子コイル巻替", target: "結線 (BN23)", status: "confirmed" },
+];
+
+/* リスト報告書の定型文（照合候補） */
+const PHRASES = {
+  f32: {
+    check: "ローター軸（D側）ベアリング部の摩耗",
+    symbol: "◎",
+    symptomCands: ["両側シャフトベアリング嵌合部の摩耗", "負荷側シャフト摩耗", "軸受部の摩耗・偏摩耗"],
+    treatCands: ["溶射加工にて補修", "肉盛加工にて補修", "ブッシング挿入加工にて補修"],
+    symptomPick: "両側シャフトベアリング嵌合部の摩耗",
+    treatPick: "溶射加工にて補修",
+  },
+  f33: {
+    check: "固定子コイルの絶縁劣化",
+    symbol: "◎",
+    symptomCands: ["固定子コイルが焼損", "固定子コイルの絶縁劣化", "レアショート発生"],
+    treatCands: ["コイル巻替作業の実施", "コイル部分補修", "含浸処理の実施"],
+    symptomPick: "固定子コイルの絶縁劣化",
+    treatPick: "コイル巻替作業の実施",
+  },
+};
+
+/* 測定値テーブル（近畿テクノ） */
+const MEAS = [
+  { key: "res", title: "巻線抵抗値", cols: ["mgmt", "recv", "before", "after", "unit", "judge", "conf"],
+    rows: [
+      { name: "220V U-V", recv: "22.37", after: "23.18", unit: "mΩ", judge: "良", conf: "high" },
+      { name: "220V V-W", recv: "22.47", after: "23.24", unit: "mΩ", judge: "良", conf: "high" },
+      { name: "220V U-W", recv: "22.20", after: "23.25", unit: "mΩ", judge: "良", conf: "high" },
+      { name: "440V u-v", recv: "90.2", after: "88.6", unit: "mΩ", judge: "良", conf: "high" },
+      { name: "440V v-w", recv: "90.7", after: "88.7", unit: "mΩ", judge: "良", conf: "high" },
+      { name: "440V u-w", recv: "89.5", after: "88.7", unit: "mΩ", judge: "良", conf: "high" },
+    ] },
+  { key: "ins", title: "絶縁抵抗値", cols: ["mgmt", "recv", "after", "unit", "judge", "conf"],
+    rows: [ { name: "受入 / 500V", recv: "2000", after: "2000", unit: "MΩ", judge: "良", conf: "high" } ] },
+  { key: "run", title: "軸ブレ", cols: ["mgmt", "before", "after", "unit", "judge", "conf"],
+    rows: [ { name: "軸ブレ", mgmt: "≦2", before: "1", after: "1", unit: "/100mm", judge: "良", conf: "high" } ] },
+  { key: "shaft", title: "シャフト寸法（ジャーナル）", cols: ["mgmt", "before", "after", "unit", "judge", "conf", "treat"],
+    rows: [
+      { name: "負荷側", mgmt: "φ75 +.011/+.030", before: "75.009", after: "75.020", unit: "mm", judge: "否→良", conf: "mid", treat: "溶射加工", flag: "mid" },
+      { name: "反負荷側", mgmt: "φ60 +.011/+.030", before: "60.008", after: "60.020", unit: "mm", judge: "否→良", conf: "mid", treat: "溶射加工", flag: "mid" },
+    ] },
+  { key: "brk", title: "ブラケット寸法（ハウジング）", cols: ["mgmt", "before", "after", "unit", "judge", "conf"],
+    rows: [
+      { name: "負荷側", mgmt: "φ160 0/+.040", before: "160.015", after: "160.015", unit: "mm", judge: "良", conf: "high" },
+      { name: "反負荷側", mgmt: "φ110 0/+.035", before: "110.015", after: "110.015", unit: "mm", judge: "良", conf: "high" },
+    ] },
+  { key: "rot", title: "回転試験", cols: ["mgmt", "recv", "after", "unit", "judge", "conf"],
+    rows: [
+      { name: "拘束 U相", recv: "179", after: "177", unit: "A", judge: "—", conf: "low",
+        flag: "low", cands: ["177", "179"], reason: "受入179と整備177が重なり判読困難" },
+      { name: "拘束 V相", recv: "162", after: "162", unit: "A", judge: "—", conf: "high" },
+      { name: "無負荷 U相", recv: "—", after: "54.9", unit: "A", judge: "良", conf: "high" },
+      { name: "回転方向", recv: "—", after: "CCW", unit: "", judge: "良", conf: "high" },
+    ] },
+  { key: "tmp", title: "温度試験", cols: ["mgmt", "before", "after", "unit", "judge", "conf"],
+    rows: [
+      { name: "外気温", after: "14", unit: "℃", judge: "—", conf: "high" },
+      { name: "30分 負荷側", after: "26", unit: "℃", judge: "良", conf: "high" },
+      { name: "30分 中央", after: "21", unit: "℃", judge: "良", conf: "high" },
+    ] },
+  { key: "vib", title: "振動試験（整備後）", cols: ["mgmt", "after", "unit", "judge", "conf"],
+    rows: [
+      { name: "変位 負荷V", after: "11", unit: "μm", judge: "良", conf: "high" },
+      { name: "変位 反V", after: "2", unit: "μm", judge: "良", conf: "high" },
+    ] },
+];
+
+const MEAS_COL_LABEL = { mgmt: "管理値", recv: "受入時", before: "整備前", after: "整備後", unit: "単位", judge: "判定", conf: "信頼度", treat: "処置" };
+
+/* シート選択（交流案件の初期値：直流を外す。リスト報告書は提出対象外） */
+const SHEETS_INIT = [
+  { id: "cover", name: "表紙", on: true, always: true },
+  { id: "ac", name: "ページ①（交流）", on: true },
+  { id: "dc", name: "ページ①（直流）", on: false },
+  { id: "rewind", name: "固定子コイル巻替", on: true },
+  { id: "ohPhoto", name: "写真【OH】", on: false, needsPhoto: true },
+  { id: "rwPhoto", name: "写真【巻替え】", on: false, needsPhoto: true },
+];
+
+/* ============================================================
+   UI 部品
+   ============================================================ */
+function Btn({ children, onClick, variant = "primary", size = "md", icon: Icon, disabled }) {
+  const base = "inline-flex items-center justify-center gap-2 font-medium rounded transition-colors select-none";
+  const sz = size === "sm" ? "text-xs px-2.5 py-1.5" : size === "lg" ? "text-sm px-5 py-2.5" : "text-sm px-3.5 py-2";
+  const styles = {
+    primary: { className: "text-white", style: { backgroundColor: disabled ? "#94a3b8" : C.navy } },
+    dark: { className: "text-white", style: { backgroundColor: C.navyDark } },
+    outline: { className: "border", style: { color: C.navy, borderColor: C.line2, backgroundColor: "#fff" } },
+    ghost: { className: "", style: { color: C.sub } },
+    danger: { className: "text-white", style: { backgroundColor: disabled ? "#fca5a5" : "#dc2626" } },
+    ok: { className: "text-white", style: { backgroundColor: "#059669" } },
+  }[variant];
+  return (
+    <button onClick={disabled ? undefined : onClick} disabled={disabled}
+      className={`${base} ${sz} ${styles.className} ${disabled ? "cursor-not-allowed opacity-90" : "hover:opacity-90"}`}
+      style={styles.style}>
+      {Icon && <Icon size={size === "sm" ? 14 : 16} />}{children}
+    </button>
+  );
+}
+
+function StatusBadge({ s }) {
+  const st = STATUS[s];
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium"
+      style={{ color: st.fg, backgroundColor: st.bg }}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: st.dot }} />{st.label}
+    </span>
+  );
+}
+
+function ConfPill({ level, small }) {
+  const c = CONF[level];
+  return (
+    <span className={`inline-flex items-center gap-1 rounded font-medium ${small ? "text-[11px] px-1.5 py-0.5" : "text-xs px-2 py-0.5"}`}
+      style={{ color: c.fg, backgroundColor: c.bg }}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.ring }} />{c.label}
+    </span>
+  );
+}
+
+function Card({ children, className = "", pad = true, style = {} }) {
+  return <div className={`bg-white rounded-lg border ${pad ? "p-5" : ""} ${className}`} style={{ borderColor: C.line, ...style }}>{children}</div>;
+}
+
+function Stat({ label, value, tone }) {
+  const st = tone ? STATUS[tone] : null;
+  return (
+    <div className="bg-white rounded-lg border px-4 py-3.5" style={{ borderColor: C.line }}>
+      <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
+      <div className="flex items-end gap-2">
+        <div className="text-2xl font-semibold" style={{ color: st ? st.fg : C.ink, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+        <div className="text-xs mb-1" style={{ color: C.sub }}>件</div>
+      </div>
+    </div>
+  );
+}
+
+/* プロトタイプ注記（各画面に小さく表示） */
+function ProtoNote({ inline }) {
+  return (
+    <div className={`flex items-start gap-1.5 text-[11px] leading-snug ${inline ? "" : "px-3 py-1.5 rounded border"}`}
+      style={inline ? { color: "#94a3b8" } : { color: "#92826a", backgroundColor: "#fdf7ec", borderColor: "#f0e2c4" }}>
+      <Info size={12} className="mt-0.5 shrink-0" />
+      <span>本画面はUIプロトタイプです。OCR、Excel出力、PDF生成、フォルダ保存は本番実装時に接続します。アカウント・案件・チャットの内容はこのブラウザ内（localStorage）にのみ保存され、他の端末とは共有されません。</span>
+    </div>
+  );
+}
+
+/* ワークフロー・ステッパー */
+const STEPS = [
+  { id: "upload", name: "アップロード", icon: Upload },
+  { id: "processing", name: "AI読み取り", icon: Cpu },
+  { id: "review", name: "結果確認", icon: FileCheck2 },
+  { id: "work", name: "作業内容", icon: ClipboardList },
+  { id: "meas", name: "測定値", icon: Ruler },
+  { id: "preview", name: "提出プレビュー", icon: Eye },
+  { id: "done", name: "完了", icon: CheckCircle2 },
+];
+function Stepper({ current, go, maxReached }) {
+  const idx = STEPS.findIndex(s => s.id === current);
+  return (
+    <div className="flex items-center gap-1 overflow-x-auto">
+      {STEPS.map((s, i) => {
+        const active = i === idx, reached = i <= maxReached;
+        const Icon = s.icon;
+        return (
+          <React.Fragment key={s.id}>
+            <button disabled={!reached} onClick={() => reached && go(s.id)}
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded text-xs font-medium whitespace-nowrap"
+              style={{
+                color: active ? "#fff" : reached ? C.navy : "#b0bac6",
+                backgroundColor: active ? C.navy : reached ? "#eef2f7" : "transparent",
+                cursor: reached ? "pointer" : "default",
+              }}>
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px]"
+                style={{ backgroundColor: active ? "rgba(255,255,255,.2)" : reached ? "#dbe3ec" : "#eef2f7", color: active ? "#fff" : reached ? C.navy : "#b0bac6" }}>
+                {i + 1}
+              </span>
+              <Icon size={14} /><span className="hidden xl:inline">{s.name}</span>
+            </button>
+            {i < STEPS.length - 1 && <ChevronRight size={14} style={{ color: "#cbd5e1" }} />}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+/* トースト */
+function Toast({ msg, onClose }) {
+  useEffect(() => { const t = setTimeout(onClose, 2600); return () => clearTimeout(t); }, [msg, onClose]);
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+      <div className="flex items-center gap-2 text-white text-sm px-4 py-2.5 rounded shadow-lg" style={{ backgroundColor: C.navyDark }}>
+        <Info size={15} />{msg}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   案件チャット（履歴＋やり取り）
+   社内の管理画面・先方向けポータルの両方から使う共通部品。
+   ============================================================ */
+function CaseChatPanel({ thread, onSend, viewerRole, currentUserName, onToggleAi, showAiToggle }) {
+  const [text, setText] = useState("");
+  const messages = thread?.messages || [];
+  const listRef = React.useRef(null);
+  useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [messages.length]);
+
+  const send = () => {
+    const v = text.trim();
+    if (!v) return;
+    const author = viewerRole === "customer" ? "先方（お客様）" : currentUserName || "社内担当者";
+    onSend?.({ role: viewerRole, author, text: v });
+    setText("");
+  };
+
+  const roleStyle = {
+    internal: { align: "items-start", bg: "#fff", border: C.line, label: "社内", labelBg: C.panel2, labelFg: C.navy },
+    customer: { align: "items-end", bg: "#eef7f0", border: "#d3ecd9", label: "先方", labelBg: "#e4efe6", labelFg: "#1e7d45" },
+  };
+
+  return (
+    <div className="flex flex-col" style={{ height: "100%" }}>
+      {showAiToggle && (
+        <label className="flex items-center justify-between gap-2 px-3 py-2 rounded border mb-2 cursor-pointer" style={{ borderColor: C.line, backgroundColor: C.panel }}>
+          <span className="flex items-center gap-1.5 text-xs" style={{ color: C.ink }}><Sparkles size={13} style={{ color: C.navy }} />先方がAIエージェント経由でこのチャットを操作することを許可する</span>
+          <input type="checkbox" checked={!!thread?.aiEnabled} onChange={e => onToggleAi?.(e.target.checked)} />
+        </label>
+      )}
+      <div ref={listRef} className="flex-1 overflow-auto rounded border px-3 py-3 space-y-2.5" style={{ borderColor: C.line, backgroundColor: "#f8fafc", minHeight: 260 }}>
+        {messages.length === 0 && <div className="text-center text-xs py-8" style={{ color: C.sub }}>まだやり取りはありません。</div>}
+        {messages.map(m => {
+          if (m.role === "system") {
+            return (
+              <div key={m.id} className="flex items-center gap-2 my-1">
+                <div className="flex-1 h-px" style={{ backgroundColor: C.line }} />
+                <span className="text-[10px] whitespace-nowrap px-2" style={{ color: C.sub }}>{m.text}（{m.at}）</span>
+                <div className="flex-1 h-px" style={{ backgroundColor: C.line }} />
+              </div>
+            );
+          }
+          const rs = roleStyle[m.role] || roleStyle.internal;
+          return (
+            <div key={m.id} className={`flex flex-col ${rs.align}`}>
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ color: rs.labelFg, backgroundColor: rs.labelBg }}>{rs.label}</span>
+                <span className="text-[11px]" style={{ color: C.sub }}>{m.author}</span>
+              </div>
+              <div className="rounded-lg border px-3 py-2 text-sm max-w-[80%]" style={{ borderColor: rs.border, backgroundColor: rs.bg, color: C.ink }}>{m.text}</div>
+              <span className="text-[10px] mt-0.5" style={{ color: "#a3adb8" }}>{m.at}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-end gap-2 mt-2">
+        <textarea value={text} onChange={e => setText(e.target.value)} rows={2}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+          placeholder={viewerRole === "customer" ? "担当者へのメッセージを入力（Enterで送信）" : "先方へのメッセージを入力（Enterで送信）"}
+          className="flex-1 rounded border px-3 py-2 text-sm" style={{ borderColor: C.line2, color: C.ink }} />
+        <Btn variant="primary" icon={Send} onClick={send}>送信</Btn>
+      </div>
+    </div>
+  );
+}
+
+/* 先方向けポータル：ログイン不要・URLに案件番号を含む簡易リンクで開く想定 */
+function CustomerPortal({ theCase, thread, onSend, onBackToStaff }) {
+  const st = theCase ? STATUS[theCase.status] : null;
+  const aiActions = [
+    { id: "check-status", label: "案件の処理状況を確認する" },
+    { id: "read-history", label: "これまでのやり取り履歴を読む" },
+    { id: "post-message", label: "担当者へメッセージを送る" },
+  ];
+  return (
+    <div className="min-h-screen" style={{ backgroundColor: "#f0f2f5" }}>
+      <header style={{ backgroundColor: C.navy }}>
+        <div className="mx-auto flex items-center justify-between px-6 h-14" style={{ maxWidth: 900 }}>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded flex items-center justify-center" style={{ backgroundColor: "rgba(255,255,255,.12)" }}><FileSpreadsheet size={17} className="text-white" /></div>
+            <div>
+              <div className="text-white text-sm font-semibold leading-tight">整備報告書【モータ】お客様ポータル</div>
+              <div className="text-[10px] leading-tight" style={{ color: "#a9bdd4" }}>Amaden ／ 進捗確認・お問い合わせ</div>
+            </div>
+          </div>
+          {onBackToStaff && (
+            <button onClick={onBackToStaff} className="text-[11px] flex items-center gap-1" style={{ color: "#cbd5e1" }}><ChevronLeft size={12} />社内画面に戻る</button>
+          )}
+        </div>
+      </header>
+      <main className="mx-auto px-6 py-6" style={{ maxWidth: 900 }} aria-label="お客様ポータル">
+        {!theCase ? (
+          <Card>
+            <div className="text-sm" style={{ color: C.ink }}>このリンクに対応する案件が見つかりませんでした。担当者に発行し直しをご依頼ください。</div>
+          </Card>
+        ) : (
+          <>
+            <Card className="mb-4">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <div className="text-xs" style={{ color: C.sub }}>管理番号 {theCase.ctrl}</div>
+                  <h1 className="text-lg font-semibold mt-0.5" style={{ color: C.ink }}>{theCase.customer} 様</h1>
+                  <div className="text-xs mt-1" style={{ color: C.sub }}>{theCase.kind}{theCase.rewind ? "・巻替" : ""} ／ {theCase.spec}</div>
+                </div>
+                {st && <StatusBadge s={theCase.status} />}
+              </div>
+              <div className="mt-3 text-[11px] flex items-start gap-1.5 rounded px-2.5 py-2" style={{ color: "#475569", backgroundColor: C.panel }}>
+                <Info size={12} className="mt-0.5" />
+                このページはUIプロトタイプです。メッセージはこのブラウザ内にのみ保存され、実際に担当者へは届きません。本番実装では担当者側とリアルタイムに共有されます。
+              </div>
+            </Card>
+
+            {thread?.aiEnabled && (
+              <Card className="mb-4">
+                <div className="flex items-center gap-1.5 text-sm font-semibold mb-2" style={{ color: C.ink }}><Sparkles size={14} style={{ color: C.navy }} />AIエージェントでの操作について</div>
+                <p className="text-xs mb-2" style={{ color: C.sub }}>お客様がご利用のAIアシスタント（ブラウザ拡張など）から、このページ上で以下の操作を行うことを許可しています。</p>
+                <ul className="text-xs space-y-1" style={{ color: C.ink }} aria-label="AIエージェントが実行できる操作の一覧">
+                  {aiActions.map(a => (
+                    <li key={a.id} data-ai-action={a.id} className="flex items-center gap-2">
+                      <Check size={12} style={{ color: "#059669" }} />{a.label}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
+
+            <Card pad={false} style={{ height: 460 }} className="flex flex-col">
+              <div className="px-4 py-2.5 border-b flex items-center gap-2" style={{ borderColor: C.line, backgroundColor: C.panel }}>
+                <MessageSquare size={14} style={{ color: C.navy }} />
+                <span className="text-sm font-semibold" style={{ color: C.ink }}>担当者とのやり取り</span>
+              </div>
+              <div className="p-4 flex-1 min-h-0">
+                <CaseChatPanel thread={thread} onSend={onSend} viewerRole="customer" />
+              </div>
+            </Card>
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+/* ============================================================
+   1. ダッシュボード
+   ============================================================ */
+function Dashboard({ cases, owners, threads, onNew, onOpen, onOwnerChange, onAddOwner, onAdmin, onOpenChat, onCopyLink, canManage }) {
+  const monthOptions = useMemo(() => {
+    return Array.from(new Set(cases.map(c => (c.date || "").slice(0, 7)).filter(Boolean))).sort().reverse();
+  }, [cases]);
+  const [month, setMonth] = useState("all");
+  const [newOwner, setNewOwner] = useState("");
+  const addOwnerFromDashboard = () => {
+    const name = newOwner.trim();
+    if (!name) return;
+    onAddOwner?.(name);
+    setNewOwner("");
+  };
+  const filteredCases = month === "all" ? cases : cases.filter(c => (c.date || "").slice(0, 7) === month);
+  const count = k => filteredCases.filter(c => c.status === k).length;
+  const monthLabel = m => m === "all" ? "全期間" : `${m.slice(0,4)}年${Number(m.slice(5,7))}月`;
+
+  return (
+    <div className="mx-auto px-8 py-6" style={{ maxWidth: 1440 }}>
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h1 className="text-xl font-semibold" style={{ color: C.ink }}>案件ダッシュボード</h1>
+          <p className="text-sm mt-0.5" style={{ color: C.sub }}>整備報告書【モータ】自動作成システム</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 rounded border bg-white px-3 py-2" style={{ borderColor: C.line2 }}>
+            <Filter size={14} style={{ color: C.sub }} />
+            <span className="text-xs" style={{ color: C.sub }}>登録月</span>
+            <select value={month} onChange={e => setMonth(e.target.value)} className="text-sm outline-none bg-white" style={{ color: C.ink }}>
+              <option value="all">全期間</option>
+              {monthOptions.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
+            </select>
+          </div>
+          {canManage && <Btn variant="outline" size="lg" icon={ShieldCheck} onClick={onAdmin}>管理者画面</Btn>}
+          {canManage && <Btn variant="primary" size="lg" icon={Plus} onClick={onNew}>新規案件登録</Btn>}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-4 gap-3 mb-6">
+        <Stat label="確認待ち" value={count("review")} tone="review" />
+        <Stat label="処理中" value={count("process")} tone="process" />
+        <Stat label="完了" value={count("done")} tone="done" />
+        <Stat label="エラー" value={count("error")} tone="error" />
+      </div>
+
+      {canManage && (
+        <Card className="mb-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold flex items-center gap-2" style={{ color: C.ink }}><UserPlus size={15} />担当者の追加・変更</div>
+              <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>担当者名を追加しておくと、案件一覧や案件情報の候補に表示されます。各案件の担当者欄は直接入力でも変更できます。</div>
+            </div>
+            <div className="flex items-center gap-2 min-w-[420px]">
+              <input value={newOwner} onChange={e => setNewOwner(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addOwnerFromDashboard(); }}
+                placeholder="追加する担当者名を入力"
+                className="flex-1 rounded border px-3 py-2 text-sm bg-white" style={{ borderColor: C.line2, color: C.ink }} />
+              <Btn variant="primary" icon={UserPlus} onClick={addOwnerFromDashboard}>担当者を追加</Btn>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      <Card pad={false}>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b" style={{ borderColor: C.line }}>
+          <div>
+            <h2 className="text-sm font-semibold" style={{ color: C.ink }}>案件一覧</h2>
+            <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>{monthLabel(month)}で絞り込み中</div>
+          </div>
+          <div className="flex items-center gap-2 text-xs" style={{ color: C.sub }}>
+            <Search size={14} /><span>表示 {filteredCases.length} 件 ／ 全 {cases.length} 件</span>
+          </div>
+        </div>
+        <datalist id="ownerOptions">
+          {owners.map(o => <option key={o} value={o} />)}
+        </datalist>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left" style={{ color: C.sub, backgroundColor: C.panel }}>
+              {["管理番号", "顧客名", "モーター種別", "処理状況", "登録日", "担当者", "先方とのやり取り", "操作"].map(h => (
+                <th key={h} className="px-5 py-2.5 font-medium text-xs">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filteredCases.map(c => (
+              <tr key={c.id} className="border-t hover:bg-slate-50" style={{ borderColor: C.line }}>
+                <td className="px-5 py-3 font-mono text-[13px]" style={{ color: C.navy }}>{c.ctrl}</td>
+                <td className="px-5 py-3" style={{ color: C.ink }}>
+                  {c.customer}
+                  <div className="text-[11px]" style={{ color: C.sub }}>{c.spec}</div>
+                </td>
+                <td className="px-5 py-3">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs border"
+                    style={{ color: C.navy, borderColor: C.line2 }}>{c.kind}{c.rewind ? " ・巻替" : ""}</span>
+                </td>
+                <td className="px-5 py-3"><StatusBadge s={c.status} /></td>
+                <td className="px-5 py-3 font-mono text-[13px]" style={{ color: C.sub }}>{c.date}</td>
+                <td className="px-5 py-3">
+                  {canManage ? (
+                    <>
+                      <input list="ownerOptions" value={c.owner || ""} onChange={e => onOwnerChange?.(c.id, e.target.value)}
+                        className="w-36 rounded border px-2 py-1.5 text-xs bg-white" style={{ borderColor: C.line2, color: C.ink }} />
+                      <div className="text-[10px] mt-1" style={{ color: C.sub }}>直接入力・変更可／新規名は上部「担当者を追加」へ</div>
+                    </>
+                  ) : (
+                    <span style={{ color: C.ink }}>{c.owner || "—"}</span>
+                  )}
+                </td>
+                <td className="px-5 py-3">
+                  {(() => {
+                    const th = threads?.[c.ctrl];
+                    const count = th?.messages?.filter(m => m.role !== "system").length || 0;
+                    return (
+                      <div className="flex items-center gap-1.5">
+                        <Btn size="sm" variant="outline" icon={MessageSquare} onClick={() => onOpenChat(c)}>
+                          履歴・チャット{count > 0 ? `（${count}）` : ""}
+                        </Btn>
+                        {canManage && (
+                          <button title="先方用リンクをコピー" onClick={() => onCopyLink(c)} className="p-1.5 rounded hover:bg-slate-100">
+                            <Link2 size={14} style={{ color: C.sub }} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </td>
+                <td className="px-5 py-3">
+                  {!canManage ? (
+                    <Btn size="sm" variant="outline" icon={Eye} onClick={() => onOpen(c, c.status === "review" ? "review" : "preview")}>表示（閲覧のみ）</Btn>
+                  ) : c.status === "error" ? (
+                    <Btn size="sm" variant="outline" icon={RotateCcw} onClick={() => onOpen(c, "upload")}>再処理</Btn>
+                  ) : c.status === "done" ? (
+                    <Btn size="sm" variant="outline" icon={Eye} onClick={() => onOpen(c, "preview")}>表示</Btn>
+                  ) : c.status === "process" ? (
+                    <Btn size="sm" variant="outline" icon={Cpu} onClick={() => onOpen(c, "processing")}>状況</Btn>
+                  ) : (
+                    <Btn size="sm" variant="primary" icon={FileCheck2} onClick={() => onOpen(c, "review")}>確認する</Btn>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {filteredCases.length === 0 && (
+          <div className="px-5 py-10 text-center text-sm" style={{ color: C.sub }}>選択した月の案件はありません。</div>
+        )}
+        {filteredCases.some(c => c.status === "error") && (
+          <div className="px-5 py-3 border-t flex items-start gap-2 text-xs" style={{ borderColor: C.line, color: STATUS.error.fg, backgroundColor: "#fef6f6" }}>
+            <AlertTriangle size={14} className="mt-0.5" />
+            <span><b className="font-mono">{filteredCases.find(c => c.status === "error")?.ctrl}</b>：{filteredCases.find(c => c.status === "error")?.err}</span>
+          </div>
+        )}
+      </Card>
+
+      <div className="mt-5"><ProtoNote /></div>
+    </div>
+  );
+}
+
+/* ============================================================
+   案件の履歴・チャット画面（社内向け）
+   ============================================================ */
+function CaseChatScreen({ theCase, thread, currentUserName, onSend, onToggleAi, onCopyLink, onBack }) {
+  return (
+    <div className="mx-auto px-8 py-6" style={{ maxWidth: 900 }}>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <button onClick={onBack} className="text-xs flex items-center gap-1 mb-1.5" style={{ color: C.sub }}><ChevronLeft size={13} />案件一覧へ</button>
+          <h1 className="text-lg font-semibold" style={{ color: C.ink }}>{theCase?.customer} 様とのやり取り</h1>
+          <div className="text-xs font-mono mt-0.5" style={{ color: C.sub }}>{theCase?.ctrl}</div>
+        </div>
+        <Btn variant="outline" icon={Link2} onClick={() => onCopyLink(theCase)}>先方用リンクをコピー</Btn>
+      </div>
+      <Card pad={false} style={{ height: 560 }} className="flex flex-col">
+        <div className="p-4 flex-1 min-h-0">
+          <CaseChatPanel thread={thread} onSend={(m) => onSend(theCase, m)} viewerRole="internal" currentUserName={currentUserName}
+            showAiToggle onToggleAi={(v) => onToggleAi(theCase, v)} />
+        </div>
+      </Card>
+      <div className="mt-4"><ProtoNote /></div>
+    </div>
+  );
+}
+
+/* ============================================================
+   2. アップロード
+   ============================================================ */
+function UploadScreen({ theCase, owners, onStart, onOwnerChange, onAddOwner }) {
+  const [file, setFile] = useState(null);
+  const [owner, setOwner] = useState(theCase?.owner || owners[0] || "");
+  const [ownerToAdd, setOwnerToAdd] = useState("");
+  const changeOwner = v => { setOwner(v); onOwnerChange?.(theCase?.id, v); };
+  const addOwnerFromUpload = () => {
+    const name = ownerToAdd.trim() || owner.trim();
+    if (!name) return;
+    onAddOwner?.(name);
+    changeOwner(name);
+    setOwnerToAdd("");
+  };
+  const [photos, setPhotos] = useState([]);
+  const [drag, setDrag] = useState(false);
+
+  const pick = () => setFile({ name: `成績書_${theCase?.customer?.replace(/[㈱\s]/g, "") || "新規"}_${theCase?.ctrl || "26MTxxxx"}.pdf`, pages: theCase?.pages || 8 });
+
+  return (
+    <div className="mx-auto px-8 py-6" style={{ maxWidth: 1440 }}>
+      <h1 className="text-lg font-semibold mb-4" style={{ color: C.ink }}>手書きPDFのアップロード</h1>
+      <div className="grid grid-cols-3 gap-5">
+        {/* 左：アップロード */}
+        <div className="col-span-2 space-y-4">
+          <Card>
+            <div className="text-sm font-semibold mb-3" style={{ color: C.ink }}>スキャン済み成績書（手書きPDF）</div>
+            <div onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
+              onDrop={e => { e.preventDefault(); setDrag(false); pick(); }}
+              className="rounded-lg border-2 border-dashed flex flex-col items-center justify-center py-12 transition-colors"
+              style={{ borderColor: drag ? C.navy : C.line2, backgroundColor: drag ? "#f0f5fa" : C.panel }}>
+              <Upload size={30} style={{ color: C.navy }} />
+              <div className="text-sm mt-3" style={{ color: C.ink }}>PDFをここにドラッグ＆ドロップ</div>
+              <div className="text-xs mt-1 mb-3" style={{ color: C.sub }}>または</div>
+              <Btn variant="outline" icon={FileText} onClick={pick}>ファイルを選択</Btn>
+            </div>
+            {file && (
+              <div className="mt-4 flex items-center justify-between rounded border px-4 py-3" style={{ borderColor: C.line, backgroundColor: "#fff" }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded flex items-center justify-center" style={{ backgroundColor: "#fde8e8" }}>
+                    <FileText size={18} style={{ color: "#c0392b" }} />
+                  </div>
+                  <div>
+                    <div className="text-sm" style={{ color: C.ink }}>{file.name}</div>
+                    <div className="text-xs" style={{ color: C.sub }}>PDF ・ {file.pages}ページ ・ 2.4 MB</div>
+                  </div>
+                </div>
+                <button onClick={() => setFile(null)} className="p-1.5 rounded hover:bg-slate-100"><X size={16} style={{ color: C.sub }} /></button>
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-semibold" style={{ color: C.ink }}>作業写真の追加<span className="font-normal text-xs ml-2" style={{ color: C.sub }}>（任意・写真シート出力時に使用）</span></div>
+              <Btn variant="outline" size="sm" icon={Image} onClick={() => setPhotos(p => [...p, { id: p.length + 1 }])}>写真を追加</Btn>
+            </div>
+            <div className="grid grid-cols-6 gap-2">
+              {photos.length === 0 && <div className="col-span-6 text-xs py-4 text-center rounded border border-dashed" style={{ color: C.sub, borderColor: C.line2 }}>写真は登録されていません</div>}
+              {photos.map(p => (
+                <div key={p.id} className="aspect-square rounded border flex items-center justify-center relative" style={{ borderColor: C.line, backgroundColor: C.panel }}>
+                  <Image size={18} style={{ color: C.sub }} />
+                  <button onClick={() => setPhotos(ps => ps.filter(x => x.id !== p.id))} className="absolute -top-1.5 -right-1.5 bg-white rounded-full border p-0.5" style={{ borderColor: C.line2 }}><X size={11} /></button>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+
+        {/* 右：担当者・登録済みテンプレート */}
+        <div className="space-y-4">
+          <Card>
+            <div className="text-sm font-semibold mb-3" style={{ color: C.ink }}>案件情報</div>
+            <label className="text-xs block mb-1" style={{ color: C.sub }}>担当者</label>
+            <div className="flex gap-2 mb-2">
+              <input list="uploadOwnerOptions" value={owner} onChange={e => changeOwner(e.target.value)}
+                placeholder="担当者名を入力"
+                className="flex-1 text-sm rounded border px-3 py-2" style={{ borderColor: C.line2, color: C.ink }} />
+              <select value={owners.includes(owner) ? owner : ""} onChange={e => changeOwner(e.target.value)}
+                className="w-32 text-sm rounded border px-2 py-2" style={{ borderColor: C.line2, color: C.ink }}>
+                <option value="">候補</option>
+                {owners.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+            <datalist id="uploadOwnerOptions">
+              {owners.map(o => <option key={o} value={o} />)}
+            </datalist>
+            <div className="text-[11px] mb-2" style={{ color: C.sub }}>候補選択だけでなく、任意の担当者名を直接入力できます。</div>
+            <div className="rounded border p-2.5 mb-3" style={{ borderColor: C.line, backgroundColor: C.panel }}>
+              <div className="text-[11px] font-semibold mb-1 flex items-center gap-1.5" style={{ color: C.ink }}><UserPlus size={12} />担当者を追加</div>
+              <div className="flex gap-2">
+                <input value={ownerToAdd} onChange={e => setOwnerToAdd(e.target.value)} placeholder="新しい担当者名"
+                  className="flex-1 rounded border px-2 py-1.5 text-xs bg-white" style={{ borderColor: C.line2, color: C.ink }} />
+                <Btn size="sm" variant="outline" icon={UserPlus} onClick={addOwnerFromUpload}>追加</Btn>
+              </div>
+            </div>
+            {theCase && (
+              <div className="text-xs rounded border px-3 py-2 space-y-1" style={{ borderColor: C.line, backgroundColor: C.panel }}>
+                <div className="flex justify-between"><span style={{ color: C.sub }}>管理番号</span><span className="font-mono" style={{ color: C.navy }}>{theCase.ctrl}</span></div>
+                <div className="flex justify-between"><span style={{ color: C.sub }}>顧客名</span><span style={{ color: C.ink }}>{theCase.customer}</span></div>
+                <div className="flex justify-between"><span style={{ color: C.sub }}>種別</span><span style={{ color: C.ink }}>{theCase.kind}{theCase.rewind ? "・巻替" : ""}</span></div>
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <div className="text-sm font-semibold mb-1" style={{ color: C.ink }}>登録済みテンプレート</div>
+            <div className="text-xs mb-3" style={{ color: C.sub }}>毎回のアップロードは不要です</div>
+            {[
+              { n: "成績書フォーム【交流・直流兼用】", d: "読み取り基準フォーム" },
+              { n: "整備報告書【モータ】", d: "提出用 出力テンプレート" },
+            ].map(t => (
+              <div key={t.n} className="flex items-center gap-3 rounded border px-3 py-2.5 mb-2" style={{ borderColor: C.line }}>
+                <div className="w-8 h-8 rounded flex items-center justify-center" style={{ backgroundColor: "#e4efe6" }}>
+                  <FileSpreadsheet size={16} style={{ color: "#1e7d45" }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] truncate" style={{ color: C.ink }}>{t.n}</div>
+                  <div className="text-[11px]" style={{ color: C.sub }}>{t.d}</div>
+                </div>
+                <span className="text-[11px] px-1.5 py-0.5 rounded" style={{ color: "#1e7d45", backgroundColor: "#e4efe6" }}>登録済</span>
+              </div>
+            ))}
+          </Card>
+
+          <Btn variant="primary" size="lg" icon={Cpu} disabled={!file} onClick={onStart}>
+            AI読み取りを開始
+          </Btn>
+          {!file && <div className="text-[11px] text-center" style={{ color: C.sub }}>PDFを選択すると開始できます</div>}
+        </div>
+      </div>
+      <div className="mt-5"><ProtoNote /></div>
+    </div>
+  );
+}
+
+/* ============================================================
+   3. AI処理中
+   ============================================================ */
+const PROC_STEPS = [
+  "PDF読み込み", "ページ分類", "基本情報抽出", "本体仕様抽出",
+  "作業内容抽出", "測定値抽出", "訂正箇所検出", "提出用項目への変換",
+];
+function Processing({ theCase, onDone }) {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    if (step >= PROC_STEPS.length) { const t = setTimeout(onDone, 700); return () => clearTimeout(t); }
+    const t = setTimeout(() => setStep(s => s + 1), 620);
+    return () => clearTimeout(t);
+  }, [step, onDone]);
+  const pct = Math.round((Math.min(step, PROC_STEPS.length) / PROC_STEPS.length) * 100);
+
+  return (
+    <div className="mx-auto px-8 py-10" style={{ maxWidth: 820 }}>
+      <Card>
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: C.navy }}>
+            <Cpu size={20} className="text-white" />
+          </div>
+          <div>
+            <div className="text-base font-semibold" style={{ color: C.ink }}>AIが成績書を読み取っています</div>
+            <div className="text-xs font-mono" style={{ color: C.sub }}>{theCase?.ctrl} ／ {theCase?.customer}</div>
+          </div>
+        </div>
+
+        <div className="my-4">
+          <div className="flex justify-between text-xs mb-1.5"><span style={{ color: C.sub }}>進捗</span><span className="font-mono" style={{ color: C.navy }}>{pct}%</span></div>
+          <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: C.panel2 }}>
+            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: C.navy }} />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          {PROC_STEPS.map((s, i) => {
+            const state = i < step ? "done" : i === step ? "run" : "wait";
+            return (
+              <div key={s} className="flex items-center gap-3 px-3 py-2.5 rounded" style={{ backgroundColor: state === "run" ? "#f0f5fa" : "transparent" }}>
+                <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: state === "done" ? "#d1fae5" : state === "run" ? C.navy : C.panel2 }}>
+                  {state === "done" ? <Check size={14} style={{ color: "#059669" }} />
+                    : state === "run" ? <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+                    : <span className="text-[11px] font-mono" style={{ color: "#94a3b8" }}>{i + 1}</span>}
+                </div>
+                <span className="text-sm" style={{ color: state === "wait" ? "#94a3b8" : C.ink, fontWeight: state === "run" ? 600 : 400 }}>{s}</span>
+                {state === "run" && <span className="text-xs ml-auto" style={{ color: C.navy }}>処理中…</span>}
+                {state === "done" && <span className="text-xs ml-auto" style={{ color: "#059669" }}>完了</span>}
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-4"><ProtoNote /></div>
+      </Card>
+    </div>
+  );
+}
+
+/* ============================================================
+   左パネル：モック・スキャン帳票（本体仕様のセルをハイライト）
+   ============================================================ */
+function MockForm({ zoom, page, highlight }) {
+  const cellStyle = (key) => ({
+    outline: highlight === key ? `2px solid ${CONF.mid.ring}` : "none",
+    outlineOffset: 1,
+    backgroundColor: highlight === key ? "#fff8e6" : "transparent",
+    borderRadius: 2,
+  });
+  const hw = { color: "#1e40af", fontStyle: "italic", fontWeight: 600 }; // 手書きインク風
+  const Cell = ({ k, label, val, w }) => (
+    <div className="border-r border-b px-1.5 py-1 flex flex-col justify-center" style={{ borderColor: "#cfd6dd", minWidth: w }}>
+      <span className="text-[9px] leading-none" style={{ color: "#8a94a0" }}>{label}</span>
+      <span className="text-[13px] leading-tight mt-0.5" style={hw}><span style={cellStyle(k)}>{val}</span></span>
+    </div>
+  );
+
+  if (page !== 1) {
+    return (
+      <div className="flex items-center justify-center h-full text-center" style={{ color: "#94a3b8" }}>
+        <div>
+          <FileText size={40} className="mx-auto mb-2" style={{ opacity: .5 }} />
+          <div className="text-sm">ページ {page} / 8</div>
+          <div className="text-xs mt-1">（プロトタイプでは1ページ目を代表表示しています）</div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div style={{ transform: `scale(${zoom})`, transformOrigin: "top center", transition: "transform .15s" }}>
+      <div className="bg-white mx-auto shadow-sm" style={{ width: 560, border: "1px solid #cfd6dd" }}>
+        {/* ヘッダ */}
+        <div className="text-center py-2 border-b" style={{ borderColor: "#cfd6dd", backgroundColor: "#f3f5f7" }}>
+          <div className="text-[13px] font-semibold tracking-wide" style={{ color: "#334155" }}>分 解 整 備 成 績 書</div>
+          <div className="text-[10px]" style={{ color: "#8a94a0" }}>成績書フォーム【交流・直流兼用】</div>
+        </div>
+        {/* 基本情報 */}
+        <div className="grid grid-cols-2 border-b" style={{ borderColor: "#cfd6dd" }}>
+          <div className="border-r px-2 py-1.5" style={{ borderColor: "#cfd6dd" }}>
+            <span className="text-[9px]" style={{ color: "#8a94a0" }}>顧客名</span>
+            <div className="text-[13px]" style={hw}><span style={cellStyle("customer")}>近畿テクノ㈱エレベータ</span></div>
+          </div>
+          <div className="grid grid-cols-2">
+            <div className="border-r px-2 py-1.5" style={{ borderColor: "#cfd6dd" }}>
+              <span className="text-[9px]" style={{ color: "#8a94a0" }}>管理No</span>
+              <div className="text-[13px] font-mono" style={hw}><span style={cellStyle("ctrl")}>26MT1020</span></div>
+            </div>
+            <div className="px-2 py-1.5">
+              <span className="text-[9px]" style={{ color: "#8a94a0" }}>受入日</span>
+              <div className="text-[13px] font-mono" style={hw}><span style={cellStyle("recv")}>25.12.27</span></div>
+            </div>
+          </div>
+        </div>
+        {/* 本体仕様 */}
+        <div className="px-2 py-1 text-[10px] font-semibold border-b" style={{ borderColor: "#cfd6dd", color: "#475569", backgroundColor: "#f8fafc" }}>本体仕様</div>
+        <div className="grid grid-cols-4 border-b" style={{ borderColor: "#cfd6dd" }}>
+          <Cell k="kw" label="出力(kW)" val="55" />
+          <Cell k="v" label="電圧(V)" val="220/440" />
+          <Cell k="p" label="極数(P)" val="4" />
+          <Cell k="a" label="電流(A)" val="179/90" />
+        </div>
+        <div className="grid grid-cols-4 border-b" style={{ borderColor: "#cfd6dd" }}>
+          <Cell k="rpm" label="回転数" val="1760" />
+          <Cell k="hz" label="周波数" val="60" />
+          <Cell k="maker" label="製造" val="フジ" />
+          <Cell k="model" label="形式" val="MRA5205A" />
+        </div>
+        <div className="grid grid-cols-3 border-b" style={{ borderColor: "#cfd6dd" }}>
+          <Cell k="serial" label="機番" val="89118752MS2" />
+          <Cell k="brD" label="ベアD" val="6315ZZ" />
+          <Cell k="brB" label="ベアB" val="6212ZZ" />
+        </div>
+        {/* 種類・付属品 */}
+        <div className="px-2 py-1 text-[10px] font-semibold border-b" style={{ borderColor: "#cfd6dd", color: "#475569", backgroundColor: "#f8fafc" }}>種類 / 付属品</div>
+        <div className="grid grid-cols-2 border-b" style={{ borderColor: "#cfd6dd" }}>
+          <div className="border-r px-2 py-1.5 flex items-center gap-2" style={{ borderColor: "#cfd6dd" }}>
+            <span className="text-[9px]" style={{ color: "#8a94a0" }}>全閉外扇型</span>
+            <span className="text-[15px]" style={{ ...hw, ...cellStyle("type") }}>☑</span>
+          </div>
+          <div className="px-2 py-1.5 flex items-center gap-2">
+            <span className="text-[9px]" style={{ color: "#8a94a0" }}>プーリー</span>
+            <span className="text-[15px]" style={hw}>☑</span>
+          </div>
+        </div>
+        {/* 備考 */}
+        <div className="px-2 py-1.5">
+          <span className="text-[9px]" style={{ color: "#8a94a0" }}>備考</span>
+          <div className="text-[12px] leading-snug" style={hw}>ベアリング グリス枯れによる摩耗／整備後440Vで30分試験／整備後CCW</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   4. 読み取り結果確認（左右2カラム）
+   ============================================================ */
+const REVIEW_FILTERS = ["要確認項目のみ", "全項目", "基本情報", "本体仕様", "作業内容", "測定値", "不具合・処置", "固定子コイル巻替"];
+function Review({ fields, setFields, onNext, toast }) {
+  const [filter, setFilter] = useState("全項目");
+  const [selId, setSelId] = useState("f10");
+  const [zoom, setZoom] = useState(1);
+  const [page, setPage] = useState(1);
+
+  const shown = useMemo(() => fields.filter(f => {
+    if (filter === "全項目") return true;
+    if (filter === "要確認項目のみ") return f.status === "review";
+    if (filter === "不具合・処置") return f.defect;
+    return f.grp === filter;
+  }), [fields, filter]);
+
+  const sel = fields.find(f => f.id === selId);
+  const reviewLeft = fields.filter(f => f.status === "review").length;
+
+  const setField = (id, patch) => setFields(fs => fs.map(f => f.id === id ? { ...f, ...patch } : f));
+
+  return (
+    <div className="mx-auto px-6 py-4" style={{ maxWidth: 1440 }}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-semibold" style={{ color: C.ink }}>読み取り結果の確認</h1>
+          <span className="text-xs px-2 py-1 rounded" style={{ color: STATUS.review.fg, backgroundColor: STATUS.review.bg }}>
+            要確認 {reviewLeft} 件
+          </span>
+        </div>
+        <Btn variant="primary" icon={ArrowRight} onClick={onNext}>作業内容の確認へ</Btn>
+      </div>
+
+      <div className="grid gap-4" style={{ gridTemplateColumns: "minmax(0,5fr) minmax(0,7fr)" }}>
+        {/* 左：PDF表示 */}
+        <Card pad={false} className="overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: C.line, backgroundColor: C.panel }}>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} className="p-1.5 rounded hover:bg-white"><ChevronLeft size={16} style={{ color: C.sub }} /></button>
+              <span className="text-xs font-mono px-1.5" style={{ color: C.ink }}>{page} / 8</span>
+              <button onClick={() => setPage(p => Math.min(8, p + 1))} className="p-1.5 rounded hover:bg-white"><ChevronRight size={16} style={{ color: C.sub }} /></button>
+            </div>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setZoom(z => Math.max(0.7, +(z - 0.15).toFixed(2)))} className="p-1.5 rounded hover:bg-white"><ZoomOut size={16} style={{ color: C.sub }} /></button>
+              <span className="text-xs font-mono w-10 text-center" style={{ color: C.ink }}>{Math.round(zoom * 100)}%</span>
+              <button onClick={() => setZoom(z => Math.min(2, +(z + 0.15).toFixed(2)))} className="p-1.5 rounded hover:bg-white"><ZoomIn size={16} style={{ color: C.sub }} /></button>
+            </div>
+          </div>
+          <div className="overflow-auto p-4" style={{ height: 560, backgroundColor: "#e9edf1" }}>
+            <MockForm zoom={zoom} page={page} highlight={sel?.box} />
+          </div>
+          {/* 選択項目の拡大 */}
+          <div className="border-t px-3 py-2.5" style={{ borderColor: C.line, backgroundColor: C.panel }}>
+            <div className="text-[11px] mb-1.5" style={{ color: C.sub }}>選択項目の認識範囲（拡大）</div>
+            <div className="flex items-center gap-3">
+              <div className="rounded border px-4 py-3 bg-white flex items-center justify-center" style={{ borderColor: sel ? CONF[sel.conf].ring : C.line, minWidth: 150 }}>
+                <span className="text-2xl" style={{ color: "#1e40af", fontStyle: "italic", fontWeight: 700 }}>{sel?.raw || "—"}</span>
+              </div>
+              <div className="text-xs space-y-0.5">
+                <div style={{ color: C.ink }}>{sel?.label}</div>
+                <div style={{ color: C.sub }}>OCR原文をそのまま拡大表示</div>
+                {sel && <ConfPill level={sel.conf} small />}
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* 右：項目リスト */}
+        <div>
+          {/* フィルタ */}
+          <div className="flex items-center gap-1.5 flex-wrap mb-3">
+            <Filter size={14} style={{ color: C.sub }} className="mr-0.5" />
+            {REVIEW_FILTERS.map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                className="text-xs px-2.5 py-1 rounded border transition-colors"
+                style={f === filter
+                  ? { backgroundColor: C.navy, color: "#fff", borderColor: C.navy }
+                  : { backgroundColor: "#fff", color: C.sub, borderColor: C.line2 }}>
+                {f}{f === "要確認項目のみ" && reviewLeft > 0 ? ` (${reviewLeft})` : ""}
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-2 overflow-auto pr-1" style={{ maxHeight: 620 }}>
+            {shown.map(f => {
+              const isSel = f.id === selId;
+              const isReview = f.status === "review";
+              return (
+                <div key={f.id} onClick={() => setSelId(f.id)}
+                  className="rounded-lg border transition-colors cursor-pointer"
+                  style={{ borderColor: isSel ? C.navy : isReview ? "#f5d9a8" : C.line, backgroundColor: isReview ? "#fffdf7" : "#fff" }}>
+                  <div className="px-3.5 py-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ color: C.navy, backgroundColor: C.panel2 }}>{f.grp}</span>
+                          <span className="text-sm font-medium truncate" style={{ color: C.ink }}>{f.label}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <ConfPill level={f.conf} small />
+                        {f.status === "confirmed"
+                          ? <span className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded" style={{ color: "#047857", backgroundColor: "#d1fae5" }}><Check size={11} />確定</span>
+                          : <span className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded" style={{ color: STATUS.review.fg, backgroundColor: STATUS.review.bg }}><AlertTriangle size={11} />要確認</span>}
+                      </div>
+                    </div>
+
+                    {/* 詳細（選択時のみ展開） */}
+                    {isSel && (
+                      <div className="mt-2.5 pt-2.5 border-t grid grid-cols-2 gap-x-4 gap-y-2 text-xs" style={{ borderColor: C.line }} onClick={e => e.stopPropagation()}>
+                        <div><div style={{ color: C.sub }}>OCR原文</div><div className="font-medium" style={{ color: "#1e40af" }}>{f.raw}</div></div>
+                        <div><div style={{ color: C.sub }}>正規化後の値 / 単位</div><div className="font-medium" style={{ color: C.ink }}>{f.norm || "—"} <span style={{ color: C.sub }}>{f.unit}</span></div></div>
+                        <div><div style={{ color: C.sub }}>転記先シート</div><div style={{ color: C.ink }}>{f.sheet}</div></div>
+                        <div><div style={{ color: C.sub }}>転記先項目</div><div className="font-mono text-[11px]" style={{ color: C.ink }}>{f.target}</div></div>
+                        {f.note && <div className="col-span-2 text-[11px] flex items-start gap-1" style={{ color: C.sub }}><Info size={11} className="mt-0.5" />{f.note}</div>}
+                        {f.reason && <div className="col-span-2 text-[11px] flex items-start gap-1 rounded px-2 py-1" style={{ color: STATUS.review.fg, backgroundColor: STATUS.review.bg }}><AlertTriangle size={11} className="mt-0.5" />{f.reason}</div>}
+
+                        {/* 候補選択 */}
+                        {f.candidates && (
+                          <div className="col-span-2">
+                            <div className="mb-1" style={{ color: C.sub }}>候補から選択</div>
+                            <div className="flex gap-2">
+                              {f.candidates.map(cd => (
+                                <button key={cd} onClick={() => setField(f.id, { norm: cd, raw: cd })}
+                                  className="px-2.5 py-1 rounded border text-sm font-mono"
+                                  style={f.norm === cd ? { borderColor: C.navy, color: C.navy, backgroundColor: "#eef2f7" } : { borderColor: C.line2, color: C.ink }}>
+                                  {cd}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 修正入力 */}
+                        <div className="col-span-2">
+                          <div className="mb-1" style={{ color: C.sub }}>修正入力</div>
+                          <input value={f.norm} onChange={e => setField(f.id, { norm: e.target.value })}
+                            className="w-full text-sm rounded border px-2.5 py-1.5" style={{ borderColor: C.line2, color: C.ink }} />
+                        </div>
+
+                        {/* アクション */}
+                        <div className="col-span-2 flex items-center gap-2 pt-0.5">
+                          <Btn size="sm" variant="ok" icon={Check} onClick={() => { setField(f.id, { status: "confirmed" }); toast("項目を確定しました"); }}>確定</Btn>
+                          <Btn size="sm" variant="outline" icon={AlertTriangle} onClick={() => setField(f.id, { status: "review" })}>要確認に戻す</Btn>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {shown.length === 0 && <div className="text-center text-sm py-8" style={{ color: C.sub }}>該当する項目はありません</div>}
+          </div>
+        </div>
+      </div>
+      <div className="mt-4"><ProtoNote /></div>
+    </div>
+  );
+}
+
+/* ============================================================
+   5. 作業内容・定型文選択
+   ============================================================ */
+function WorkContent({ fields, phraseSel, setPhraseSel, onNext, toast }) {
+  const defects = fields.filter(f => f.defect);
+  const set = (id, patch) => setPhraseSel(s => ({ ...s, [id]: { ...s[id], ...patch } }));
+
+  return (
+    <div className="mx-auto px-8 py-5" style={{ maxWidth: 1120 }}>
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-lg font-semibold" style={{ color: C.ink }}>作業内容・定型文の選択</h1>
+        <Btn variant="primary" icon={ArrowRight} onClick={onNext}>測定値の確認へ</Btn>
+      </div>
+      <div className="flex items-start gap-1.5 text-xs mb-4 rounded px-3 py-2" style={{ color: "#475569", backgroundColor: C.panel }}>
+        <Info size={13} className="mt-0.5" />
+        AIは技術的な文章を新規に作成しません。手書き原文に対し、<b className="mx-1">リスト報告書に登録済みの定型文</b>から候補を提示します。適切な候補を選ぶか、原文をそのまま使用してください。
+      </div>
+
+      <div className="space-y-4">
+        {defects.map(f => {
+          const p = PHRASES[f.id];
+          const cur = phraseSel[f.id] || { mode: "dict", symptom: p.symptomPick, treat: p.treatPick, custom: "" };
+          return (
+            <Card key={f.id}>
+              <div className="grid gap-5" style={{ gridTemplateColumns: "minmax(0,4fr) minmax(0,6fr)" }}>
+                {/* 左：手書き原文 + チェック */}
+                <div>
+                  <div className="text-xs mb-1" style={{ color: C.sub }}>手書き原文</div>
+                  <div className="rounded border px-3 py-2.5 text-[15px] mb-3" style={{ borderColor: C.line2, color: "#1e40af", fontStyle: "italic", backgroundColor: "#fafbfc" }}>{f.raw}</div>
+                  <div className="text-xs mb-1" style={{ color: C.sub }}>作業内容のチェック結果</div>
+                  <div className="text-sm mb-3" style={{ color: C.ink }}>{p.check}</div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-xs" style={{ color: C.sub }}>提出用Excelへ入れる記号</div>
+                    <span className="text-2xl leading-none" style={{ color: C.navy }}>{p.symbol}</span>
+                  </div>
+                </div>
+
+                {/* 右：定型文候補 */}
+                <div className="border-l pl-5" style={{ borderColor: C.line }}>
+                  <div className="flex items-center gap-4 mb-3">
+                    <label className="flex items-center gap-1.5 text-sm cursor-pointer" style={{ color: C.ink }}>
+                      <input type="radio" checked={cur.mode === "dict"} onChange={() => set(f.id, { mode: "dict" })} />
+                      リスト報告書の定型文を使用
+                    </label>
+                    <label className="flex items-center gap-1.5 text-sm cursor-pointer" style={{ color: C.ink }}>
+                      <input type="radio" checked={cur.mode === "raw"} onChange={() => set(f.id, { mode: "raw" })} />
+                      原文を使用
+                    </label>
+                  </div>
+
+                  {cur.mode === "dict" ? (
+                    <div className="space-y-3">
+                      <div>
+                        <div className="text-xs mb-1" style={{ color: C.sub }}>症状・箇所（候補）</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {p.symptomCands.map(s => (
+                            <button key={s} onClick={() => set(f.id, { symptom: s })}
+                              className="text-xs px-2.5 py-1.5 rounded border text-left"
+                              style={cur.symptom === s ? { borderColor: C.navy, backgroundColor: "#eef2f7", color: C.navy } : { borderColor: C.line2, color: C.ink }}>
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs mb-1" style={{ color: C.sub }}>処置内容（候補）</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {p.treatCands.map(s => (
+                            <button key={s} onClick={() => set(f.id, { treat: s })}
+                              className="text-xs px-2.5 py-1.5 rounded border text-left"
+                              style={cur.treat === s ? { borderColor: C.navy, backgroundColor: "#eef2f7", color: C.navy } : { borderColor: C.line2, color: C.ink }}>
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm rounded border px-3 py-2" style={{ borderColor: C.line2, color: C.ink, backgroundColor: "#fafbfc" }}>{f.raw}</div>
+                  )}
+
+                  <div className="mt-3">
+                    <div className="text-xs mb-1" style={{ color: C.sub }}>担当者による修正（任意）</div>
+                    <input value={cur.custom} placeholder="必要に応じて手直しできます"
+                      onChange={e => set(f.id, { custom: e.target.value })}
+                      className="w-full text-sm rounded border px-2.5 py-1.5" style={{ borderColor: C.line2, color: C.ink }} />
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between">
+                    <div className="text-xs rounded px-2 py-1" style={{ color: C.navy, backgroundColor: C.panel2 }}>
+                      特記事項へ転記：<b>{cur.custom || (cur.mode === "raw" ? f.raw : `${cur.symptom} → ${cur.treat}`)}</b>
+                    </div>
+                    <Btn size="sm" variant="ok" icon={Check} onClick={() => toast("特記事項を確定しました")}>この内容で確定</Btn>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+      <div className="mt-4"><ProtoNote /></div>
+    </div>
+  );
+}
+
+/* ============================================================
+   6. 測定値確認
+   ============================================================ */
+function Measurements({ measSel, setMeasSel, onNext, toast }) {
+  const flagStyle = flag => flag === "low" ? { backgroundColor: "#fef2f2" } : flag === "mid" ? { backgroundColor: "#fffaf0" } : {};
+  return (
+    <div className="mx-auto px-8 py-5" style={{ maxWidth: 1440 }}>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h1 className="text-lg font-semibold" style={{ color: C.ink }}>測定値の確認</h1>
+          <p className="text-xs mt-0.5" style={{ color: C.sub }}>判定（良/可/否）は手書きの記入をそのまま転記します。AIは良否を新たに判定しません。</p>
+        </div>
+        <Btn variant="primary" icon={ArrowRight} onClick={onNext}>提出プレビューへ</Btn>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        {MEAS.map(tbl => (
+          <Card key={tbl.key} pad={false}>
+            <div className="px-4 py-2.5 border-b flex items-center gap-2" style={{ borderColor: C.line, backgroundColor: C.panel }}>
+              <Ruler size={14} style={{ color: C.navy }} />
+              <span className="text-sm font-semibold" style={{ color: C.ink }}>{tbl.title}</span>
+            </div>
+            <table className="w-full text-xs">
+              <thead>
+                <tr style={{ color: C.sub }}>
+                  <th className="text-left px-3 py-1.5 font-medium">項目</th>
+                  {tbl.cols.map(c => <th key={c} className="text-right px-3 py-1.5 font-medium">{MEAS_COL_LABEL[c]}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {tbl.rows.map((r, i) => (
+                  <tr key={i} className="border-t" style={{ borderColor: C.line, ...flagStyle(r.flag) }}>
+                    <td className="px-3 py-1.5" style={{ color: C.ink }}>{r.name}</td>
+                    {tbl.cols.map(c => {
+                      if (c === "conf") return <td key={c} className="px-3 py-1.5 text-right"><ConfPill level={r.conf} small /></td>;
+                      if (c === "judge") return <td key={c} className="px-3 py-1.5 text-right font-medium" style={{ color: (r.judge || "").includes("否") ? "#b45309" : r.judge === "良" ? "#047857" : C.ink }}>{r.judge || "—"}</td>;
+                      if (c === "treat") return <td key={c} className="px-3 py-1.5 text-right" style={{ color: C.navy }}>{r.treat || "—"}</td>;
+                      const v = r[c];
+                      return <td key={c} className="px-3 py-1.5 text-right font-mono" style={{ color: v == null ? "#cbd5e1" : C.ink }}>{v == null ? "—" : v}</td>;
+                    })}
+                  </tr>
+                ))}
+                {/* 候補選択が必要な行 */}
+                {tbl.rows.filter(r => r.cands).map((r, i) => (
+                  <tr key={"c" + i} className="border-t" style={{ borderColor: C.line, backgroundColor: "#fef2f2" }}>
+                    <td colSpan={tbl.cols.length + 1} className="px-3 py-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <AlertTriangle size={12} style={{ color: "#b91c1c" }} />
+                        <span style={{ color: "#b91c1c" }}>{r.name}：{r.reason}</span>
+                        <span style={{ color: C.sub }}>候補</span>
+                        {r.cands.map(cd => (
+                          <button key={cd} onClick={() => { setMeasSel(s => ({ ...s, [tbl.key + r.name]: cd })); toast(`${r.name} を ${cd} に確定`); }}
+                            className="px-2 py-0.5 rounded border font-mono"
+                            style={measSel[tbl.key + r.name] === cd ? { borderColor: C.navy, backgroundColor: "#eef2f7", color: C.navy } : { borderColor: C.line2, color: C.ink }}>
+                            {cd} {r.unit}
+                          </button>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+        ))}
+      </div>
+      <div className="mt-4"><ProtoNote /></div>
+    </div>
+  );
+}
+
+/* ============================================================
+   7. 提出用プレビュー
+   ============================================================ */
+function Preview({ sheets, setSheets, fields, setFields, activeCase, onNext, toast, onAudit }) {
+  const [activeSheet, setActiveSheet] = useState("cover");
+  const f = id => fields.find(x => x.id === id)?.norm || "";
+  const [previewData, setPreviewData] = useState(() => ({
+    customer: f("f1") || activeCase?.customer || "近畿テクノ㈱エレベータ",
+    ctrl: f("f2") || activeCase?.ctrl || "1020",
+    completeDate: f("f4") || "2026 年 3 月 17 日",
+    owner: activeCase?.owner || "増田 慎吾",
+    title: "電動機 分解整備報告書",
+    output: `${f("f10") || "55"} kW`,
+    voltage: `${f("f11") || "220/440"} V`,
+    pole: `${f("f12") || "4"} P`,
+    current: `${f("f13") || "179/90"} A`,
+    rpm: `${f("f14") || "1760"} rpm`,
+    hz: `${f("f15") || "60"} Hz`,
+    maker: f("f16") || "フジ",
+    model: f("f17") || "MRA5205A",
+    serial: f("f18") || "89118752MS2",
+    bearingD: f("f19") || "6315ZZ",
+    bearingB: f("f20") || "6212ZZ",
+    note1: "ローター軸(D)ベアリング部 摩耗　→　溶射加工にて補修",
+    note2: "固定子コイル 絶縁劣化　→　コイル巻替作業の実施",
+    dcOutput: "—",
+    dcVoltage: "—",
+    dcCurrent: "—",
+    dcRpm: "—",
+    rewindReason: f("f50") || "客先希望",
+    wireSize: f("f51") || "1.3/1.2 φ",
+    slotCount: f("f52") || "48",
+    connection: f("f53") || "220Y/440Δ",
+    photoOhCaption: "分解・洗浄・ベアリング交換後の状態",
+    photoRwCaption: "固定子コイル巻替後の仕上がり確認",
+  }));
+
+  const toggle = id => setSheets(ss => ss.map(s => s.id === id && !s.always ? { ...s, on: !s.on } : s));
+  const selectedSheet = sheets.find(s => s.id === activeSheet) || sheets[0];
+  useEffect(() => {
+    if (!sheets.some(s => s.id === activeSheet)) setActiveSheet("cover");
+  }, [sheets, activeSheet]);
+
+  const fieldMap = {
+    customer: "f1", ctrl: "f2", completeDate: "f4", output: "f10", voltage: "f11", pole: "f12", current: "f13",
+    rpm: "f14", hz: "f15", maker: "f16", model: "f17", serial: "f18", bearingD: "f19", bearingB: "f20",
+    rewindReason: "f50", wireSize: "f51", slotCount: "f52", connection: "f53"
+  };
+  const updateData = (key, val) => {
+    setPreviewData(d => {
+      const before = d[key] || "";
+      if (before !== val) onAudit?.("提出用プレビュー編集", `${activeCase?.ctrl || "新規案件"} / ${key}`, before, val);
+      return { ...d, [key]: val };
+    });
+    if (fieldMap[key]) {
+      setFields?.(fs => fs.map(x => x.id === fieldMap[key] ? { ...x, norm: val, status: "confirmed", conf: x.conf === "low" ? "mid" : x.conf } : x));
+    }
+  };
+
+  const editGroups = {
+    cover: [
+      { id: "customer", label: "顧客名" }, { id: "completeDate", label: "作業完了日" },
+      { id: "ctrl", label: "管理No" }, { id: "owner", label: "担当者" }, { id: "title", label: "件名" }
+    ],
+    ac: [
+      { id: "output", label: "出力" }, { id: "voltage", label: "電圧" }, { id: "pole", label: "極数" },
+      { id: "current", label: "電流" }, { id: "rpm", label: "回転数" }, { id: "hz", label: "周波数" },
+      { id: "maker", label: "製造会社" }, { id: "model", label: "形式" }, { id: "serial", label: "製造番号" },
+      { id: "bearingD", label: "ベアリングD" }, { id: "bearingB", label: "ベアリングB" },
+      { id: "note1", label: "特記事項①", long: true }, { id: "note2", label: "特記事項②", long: true },
+    ],
+    dc: [
+      { id: "dcOutput", label: "出力" }, { id: "dcVoltage", label: "電圧" }, { id: "dcCurrent", label: "電流" }, { id: "dcRpm", label: "回転数" },
+    ],
+    rewind: [
+      { id: "rewindReason", label: "巻替理由" }, { id: "wireSize", label: "線径" }, { id: "slotCount", label: "スロット数" }, { id: "connection", label: "結線" },
+    ],
+    ohPhoto: [ { id: "photoOhCaption", label: "写真コメント", long: true } ],
+    rwPhoto: [ { id: "photoRwCaption", label: "写真コメント", long: true } ],
+  };
+  const rows = editGroups[activeSheet] || editGroups.cover;
+
+  return (
+    <div className="mx-auto px-8 py-5" style={{ maxWidth: 1440 }}>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h1 className="text-lg font-semibold" style={{ color: C.ink }}>提出用プレビュー</h1>
+          <p className="text-xs mt-0.5" style={{ color: C.sub }}>右側のプレビュー上で、表紙以外のシートも確認・値変更できます。</p>
+        </div>
+        <Btn variant="primary" icon={FileText} onClick={onNext}>Excel・PDFを生成</Btn>
+      </div>
+
+      <div className="grid gap-4" style={{ gridTemplateColumns: "minmax(0,3fr) minmax(0,9fr)" }}>
+        {/* 出力対象シート */}
+        <Card>
+          <div className="text-sm font-semibold mb-3" style={{ color: C.ink }}>出力対象シート</div>
+          <div className="space-y-1.5">
+            {sheets.map(s => (
+              <div key={s.id} className="flex items-center gap-2.5 px-2.5 py-2 rounded border cursor-pointer"
+                onClick={() => setActiveSheet(s.id)}
+                style={{ borderColor: activeSheet === s.id ? C.navy : (s.on ? C.line2 : C.line), backgroundColor: activeSheet === s.id ? "#eef4fb" : (s.on ? "#fff" : "#f8fafc") }}>
+                <input type="checkbox" checked={s.on} disabled={s.always} onChange={e => { e.stopPropagation(); toggle(s.id); }} />
+                <span className="text-sm flex-1" style={{ color: s.on ? C.ink : C.sub }}>{s.name}</span>
+                {activeSheet === s.id && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ color: C.navy, backgroundColor: "#fff" }}>表示中</span>}
+                {s.always && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ color: C.navy, backgroundColor: C.panel2 }}>必須</span>}
+                {!s.on && !s.always && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ color: C.sub, backgroundColor: C.panel }}>出力外</span>}
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 text-[11px] flex items-start gap-1.5 rounded px-2.5 py-2" style={{ color: "#475569", backgroundColor: C.panel }}>
+            <Info size={12} className="mt-0.5" />
+            交流案件のため「ページ①（直流）」は初期選択から外しています。リスト報告書は客先提出PDFには含めません。
+          </div>
+        </Card>
+
+        {/* Excel風プレビュー + 値編集 */}
+        <Card pad={false} className="overflow-hidden">
+          <div className="flex items-center gap-1 px-3 py-2 border-b overflow-x-auto" style={{ borderColor: C.line, backgroundColor: C.panel }}>
+            {sheets.map((s) => (
+              <button key={s.id} onClick={() => setActiveSheet(s.id)} className="text-xs px-2.5 py-1 rounded-t whitespace-nowrap border"
+                style={{ backgroundColor: activeSheet === s.id ? "#fff" : "transparent", color: activeSheet === s.id ? C.navy : C.sub, borderColor: activeSheet === s.id ? C.line : "transparent", opacity: s.on ? 1 : .55 }}>
+                {s.name}{!s.on && !s.always ? "（出力外）" : ""}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid" style={{ gridTemplateColumns: "minmax(0,7.5fr) minmax(320px,3.5fr)", height: 590 }}>
+            <div className="p-5 overflow-auto" style={{ backgroundColor: "#eef1f4" }}>
+              <ExcelPreview activeSheet={activeSheet} data={previewData} updateData={updateData} sheet={selectedSheet} />
+            </div>
+            <div className="border-l p-4 overflow-auto" style={{ borderColor: C.line, backgroundColor: "#fff" }}>
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <div className="text-sm font-semibold" style={{ color: C.ink }}>{selectedSheet?.name || "表紙"} の入力値</div>
+                  <div className="text-[11px]" style={{ color: C.sub }}>ここで変更した値はプレビューへ即時反映されます。</div>
+                </div>
+                {!selectedSheet?.on && <span className="text-[10px] rounded px-2 py-1" style={{ color: C.sub, backgroundColor: C.panel }}>出力対象外</span>}
+              </div>
+
+              <div className="space-y-2.5">
+                {rows.map(r => (
+                  <label key={r.id} className="block">
+                    <div className="text-[11px] mb-1" style={{ color: C.sub }}>{r.label}</div>
+                    {r.long ? (
+                      <textarea value={previewData[r.id] || ""} rows={3} onChange={e => updateData(r.id, e.target.value)}
+                        className="w-full rounded border px-2.5 py-2 text-xs" style={{ borderColor: C.line2, color: C.ink }} />
+                    ) : (
+                      <input value={previewData[r.id] || ""} onChange={e => updateData(r.id, e.target.value)}
+                        className="w-full rounded border px-2.5 py-2 text-sm" style={{ borderColor: C.line2, color: C.ink }} />
+                    )}
+                  </label>
+                ))}
+              </div>
+
+              <div className="mt-4 rounded border p-3" style={{ borderColor: C.line, backgroundColor: C.panel }}>
+                <div className="text-xs font-semibold mb-1" style={{ color: C.ink }}>編集対象の考え方</div>
+                <div className="text-[11px] leading-relaxed" style={{ color: C.sub }}>
+                  本番ではこの編集欄が、整備報告書Excelの対象セルへ紐づきます。表紙、交流、直流、固定子コイル巻替、写真コメントをこの画面で確認・修正してからPDF化します。
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+      <div className="mt-4"><ProtoNote /></div>
+    </div>
+  );
+}
+
+/* 整備報告書シート別のExcel風プレビュー */
+function ExcelPreview({ activeSheet, data, updateData, sheet }) {
+  const InputCell = ({ id, className = "", align = "left" }) => (
+    <input value={data[id] || ""} onChange={e => updateData(id, e.target.value)}
+      className={`w-full bg-transparent outline-none ${className}`}
+      style={{ color: "#1f2937", textAlign: align }} />
+  );
+  const Row = ({ label, id, mono }) => (
+    <div className="flex border-b" style={{ borderColor: "#d9dee4" }}>
+      <div className="w-40 px-2 py-1.5 text-[11px] border-r" style={{ borderColor: "#d9dee4", backgroundColor: "#f6f8fa", color: "#64748b" }}>{label}</div>
+      <div className={`flex-1 px-2 py-1.5 text-[13px] ${mono ? "font-mono" : ""}`}><InputCell id={id} /></div>
+    </div>
+  );
+
+  const SheetFrame = ({ title, subtitle, children }) => (
+    <div>
+      {sheet && !sheet.on && (
+        <div className="mx-auto mb-3 rounded border px-3 py-2 text-xs" style={{ width: 760, borderColor: C.line, backgroundColor: "#fff7ed", color: "#b45309" }}>
+          このシートは現在「出力対象外」です。左側のチェックを入れると提出PDFに含める想定です。
+        </div>
+      )}
+      <div className="mx-auto bg-white shadow-sm" style={{ width: 760, border: "1px solid #cfd6dd" }}>
+        <div className="text-center py-3 border-b" style={{ borderColor: "#cfd6dd", backgroundColor: "#f3f5f7" }}>
+          <div className="text-base font-semibold tracking-widest" style={{ color: "#1f2937" }}>{title}</div>
+          {subtitle && <div className="text-[11px] mt-0.5" style={{ color: "#64748b" }}>{subtitle}</div>}
+        </div>
+        {children}
+        <div className="text-center text-[10px] py-2" style={{ color: "#94a3b8" }}>― プレビュー（入力値は編集可能なUIモックです）―</div>
+      </div>
+    </div>
+  );
+
+  if (activeSheet === "cover") {
+    return (
+      <SheetFrame title="整 備 報 告 書" subtitle="【モータ】／ 表紙">
+        <Row label="顧客名" id="customer" />
+        <Row label="件名" id="title" />
+        <div className="flex border-b" style={{ borderColor: "#d9dee4" }}>
+          <div className="w-40 px-2 py-1.5 text-[11px] border-r" style={{ borderColor: "#d9dee4", backgroundColor: "#f6f8fa", color: "#64748b" }}>作業完了</div>
+          <div className="flex-1 px-2 py-1.5 text-[13px] font-mono"><InputCell id="completeDate" /></div>
+          <div className="w-32 px-2 py-1.5 text-[11px] border-l border-r" style={{ borderColor: "#d9dee4", backgroundColor: "#f6f8fa", color: "#64748b" }}>管理No</div>
+          <div className="w-28 px-2 py-1.5 text-[13px] font-mono"><InputCell id="ctrl" /></div>
+        </div>
+        <Row label="担当者" id="owner" />
+        <div className="px-6 py-20 text-center text-[12px]" style={{ color: "#94a3b8" }}>ここに提出先・表紙本文・会社情報が入る想定</div>
+      </SheetFrame>
+    );
+  }
+
+  if (activeSheet === "ac") {
+    return (
+      <SheetFrame title="ページ①（交流）" subtitle="本体仕様・作業内容・測定結果">
+        <div className="px-2 py-1.5 text-[12px] font-semibold border-b" style={{ borderColor: "#cfd6dd", color: "#334155", backgroundColor: "#eef2f7" }}>本体仕様</div>
+        <div className="grid grid-cols-4">
+          {[
+            ["出力", "output"], ["電圧", "voltage"], ["極数", "pole"], ["電流", "current"],
+            ["回転数", "rpm"], ["周波数", "hz"], ["製造", "maker"], ["形式", "model"],
+            ["製造番号", "serial"], ["ベアD", "bearingD"], ["ベアB", "bearingB"]
+          ].map(([k, id], i) => (
+            <div key={i} className="border-r border-b px-2 py-1.5" style={{ borderColor: "#d9dee4" }}>
+              <div className="text-[10px]" style={{ color: "#8a94a0" }}>{k}</div>
+              <div className="text-[13px] font-mono"><InputCell id={id} /></div>
+            </div>
+          ))}
+        </div>
+        <div className="px-2 py-1.5 text-[12px] font-semibold border-b" style={{ borderColor: "#cfd6dd", color: "#334155", backgroundColor: "#eef2f7" }}>特記事項</div>
+        <div className="px-2 py-1.5 text-[12px] border-b" style={{ borderColor: "#d9dee4" }}><InputCell id="note1" /></div>
+        <div className="px-2 py-1.5 text-[12px] border-b" style={{ borderColor: "#d9dee4" }}><InputCell id="note2" /></div>
+        <div className="px-2 py-1.5 text-[12px] font-semibold border-b" style={{ borderColor: "#cfd6dd", color: "#334155", backgroundColor: "#eef2f7" }}>測定値（抜粋）</div>
+        <table className="w-full text-[12px]">
+          <thead><tr style={{ color: "#64748b", backgroundColor: "#f6f8fa" }}>
+            {["項目", "管理値", "整備前", "整備後", "判定"].map(h => <th key={h} className="text-left px-2 py-1 font-medium border-r" style={{ borderColor: "#d9dee4" }}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {[["ジャーナル 負荷側", "φ75 +.011/.030", "75.009", "75.020", "良"], ["絶縁抵抗", "—", "—", "2000 MΩ", "良"], ["軸ブレ", "≦2", "1", "1", "良"]].map((r, i) => (
+              <tr key={i} className="border-t" style={{ borderColor: "#d9dee4" }}>
+                {r.map((c, j) => <td key={j} className={`px-2 py-1 border-r ${j > 0 && j < 4 ? "font-mono" : ""}`} style={{ borderColor: "#d9dee4", color: j === 4 ? "#047857" : "#1f2937" }}>{c}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </SheetFrame>
+    );
+  }
+
+  if (activeSheet === "dc") {
+    return (
+      <SheetFrame title="ページ①（直流）" subtitle="直流モーター用入力プレビュー">
+        <div className="grid grid-cols-4">
+          {[["出力", "dcOutput"], ["電圧", "dcVoltage"], ["電流", "dcCurrent"], ["回転数", "dcRpm"]].map(([k, id], i) => (
+            <div key={i} className="border-r border-b px-2 py-2" style={{ borderColor: "#d9dee4" }}>
+              <div className="text-[10px]" style={{ color: "#8a94a0" }}>{k}</div>
+              <div className="text-[13px] font-mono"><InputCell id={id} /></div>
+            </div>
+          ))}
+        </div>
+        <div className="px-6 py-24 text-center text-[12px]" style={{ color: "#94a3b8" }}>直流案件ではここに電機子・界磁・ブラシ等の情報が入る想定</div>
+      </SheetFrame>
+    );
+  }
+
+  if (activeSheet === "rewind") {
+    return (
+      <SheetFrame title="固定子コイル巻替" subtitle="巻替情報・巻線仕様">
+        <div className="grid grid-cols-2">
+          {[["巻替理由", "rewindReason"], ["線径", "wireSize"], ["スロット数", "slotCount"], ["結線", "connection"]].map(([k, id], i) => (
+            <div key={i} className="border-r border-b px-3 py-2" style={{ borderColor: "#d9dee4" }}>
+              <div className="text-[10px]" style={{ color: "#8a94a0" }}>{k}</div>
+              <div className="text-[13px] font-mono"><InputCell id={id} /></div>
+            </div>
+          ))}
+        </div>
+        <div className="px-6 py-20 text-center text-[12px]" style={{ color: "#94a3b8" }}>巻数・絶縁種別・ワニス処理・試験結果などを追加配置する想定</div>
+      </SheetFrame>
+    );
+  }
+
+  return (
+    <SheetFrame title={activeSheet === "ohPhoto" ? "写真【OH】" : "写真【巻替え】"} subtitle="写真台紙プレビュー">
+      <div className="grid grid-cols-2 gap-3 p-4">
+        {[1,2,3,4].map(n => (
+          <div key={n} className="border rounded p-3" style={{ borderColor: "#d9dee4" }}>
+            <div className="h-32 rounded flex items-center justify-center mb-2" style={{ backgroundColor: "#eef2f7", color: "#94a3b8" }}><Image size={28} /></div>
+            <div className="text-[12px]"><InputCell id={activeSheet === "ohPhoto" ? "photoOhCaption" : "photoRwCaption"} /></div>
+          </div>
+        ))}
+      </div>
+    </SheetFrame>
+  );
+}
+
+/* ============================================================
+   8. 生成完了
+   ============================================================ */
+function Done({ theCase, toast, onHome }) {
+  const savePath = `¥¥amaden-nas¥整備報告書¥2026¥${theCase?.ctrl || "26MT1020B"}¥`;
+  return (
+    <div className="mx-auto px-8 py-10" style={{ maxWidth: 820 }}>
+      <Card>
+        <div className="text-center py-2">
+          <div className="w-14 h-14 rounded-full mx-auto flex items-center justify-center mb-3" style={{ backgroundColor: "#d1fae5" }}>
+            <CheckCircle2 size={30} style={{ color: "#059669" }} />
+          </div>
+          <div className="text-lg font-semibold" style={{ color: C.ink }}>ファイルを生成しました</div>
+          <div className="text-xs font-mono mt-1" style={{ color: C.sub }}>{theCase?.ctrl} ／ {theCase?.customer}</div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 my-5">
+          {[
+            { icon: FileSpreadsheet, c: "#1e7d45", bg: "#e4efe6", t: "Excel作成完了", s: `${theCase?.ctrl || "26MT1020B"}_整備報告書.xlsx`, label: "Excelを開く", act: ExternalLink },
+            { icon: FileText, c: "#c0392b", bg: "#fde8e8", t: "PDF作成完了", s: `${theCase?.ctrl || "26MT1020B"}_整備報告書.pdf（15ページ）`, label: "PDFを開く", act: ExternalLink },
+          ].map((x, i) => (
+            <div key={i} className="rounded-lg border px-4 py-3.5" style={{ borderColor: C.line }}>
+              <div className="flex items-center gap-2.5 mb-2">
+                <div className="w-9 h-9 rounded flex items-center justify-center" style={{ backgroundColor: x.bg }}><x.icon size={18} style={{ color: x.c }} /></div>
+                <div>
+                  <div className="text-sm font-medium" style={{ color: C.ink }}>{x.t}</div>
+                  <div className="inline-flex items-center gap-1 text-[11px]" style={{ color: "#059669" }}><Check size={11} />完了</div>
+                </div>
+              </div>
+              <div className="text-[11px] font-mono mb-2.5 truncate" style={{ color: C.sub }}>{x.s}</div>
+              <Btn size="sm" variant="outline" icon={x.act} onClick={() => toast("本番実装時にファイルを開きます")}>{x.label}</Btn>
+            </div>
+          ))}
+        </div>
+
+        <div className="rounded-lg border px-4 py-3 mb-5" style={{ borderColor: C.line, backgroundColor: C.panel }}>
+          <div className="text-xs mb-1" style={{ color: C.sub }}>保存先</div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[13px] font-mono truncate" style={{ color: C.ink }}>{savePath}</div>
+            <Btn size="sm" variant="outline" icon={FolderOpen} onClick={() => toast("本番実装時に保存フォルダを開きます")}>フォルダを開く</Btn>
+          </div>
+        </div>
+
+        <div className="flex justify-center">
+          <Btn variant="primary" size="lg" icon={LayoutDashboard} onClick={onHome}>案件一覧へ戻る</Btn>
+        </div>
+        <div className="mt-5"><ProtoNote /></div>
+      </Card>
+    </div>
+  );
+}
+
+/* ============================================================
+   ログイン画面・管理者画面
+   ============================================================ */
+function LoginScreen({ accounts, onLogin }) {
+  const activeAdmins = accounts.filter(a => a.status === "有効");
+  const [name, setName] = useState(activeAdmins[0]?.name || "");
+  return (
+    <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "#f0f2f5" }}>
+      <Card className="w-full" style={{ maxWidth: 520 }}>
+        <div className="text-center mb-6">
+          <div className="w-12 h-12 rounded mx-auto flex items-center justify-center mb-3" style={{ backgroundColor: C.navy }}><ShieldCheck size={24} className="text-white" /></div>
+          <h1 className="text-lg font-semibold" style={{ color: C.ink }}>整備報告書システム ログイン</h1>
+          <p className="text-xs mt-1" style={{ color: C.sub }}>管理者・担当者ごとの変更履歴を残す想定のUIプロトタイプです。</p>
+        </div>
+        <label className="block text-xs mb-1" style={{ color: C.sub }}>アカウント</label>
+        <select value={name} onChange={e => setName(e.target.value)} className="w-full rounded border px-3 py-2 text-sm mb-4" style={{ borderColor: C.line2, color: C.ink }}>
+          {activeAdmins.map(a => <option key={a.id} value={a.name}>{a.name}（{a.role}）</option>)}
+        </select>
+        <label className="block text-xs mb-1" style={{ color: C.sub }}>パスワード</label>
+        <input type="password" value="prototype" readOnly className="w-full rounded border px-3 py-2 text-sm mb-4 bg-slate-50" style={{ borderColor: C.line2, color: C.sub }} />
+        <Btn variant="primary" size="lg" icon={LogIn} onClick={() => onLogin(accounts.find(a => a.name === name) || activeAdmins[0])}>ログイン</Btn>
+        <div className="mt-4"><ProtoNote /></div>
+      </Card>
+    </div>
+  );
+}
+
+function AdminPanel({ accounts, setAccounts, logs, cases, threads, currentUser, onBack, onAddAccount, onDeleteAccount, onAudit, onOpenChat, onCopyLink, toast }) {
+  const [tab, setTab] = useState("accounts");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("担当者");
+  const [expandedId, setExpandedId] = useState(null);
+  const [logUser, setLogUser] = useState("全員");
+  const [logAction, setLogAction] = useState("全操作");
+  const add = () => {
+    if (!name.trim()) return;
+    onAddAccount(name.trim(), email.trim(), role);
+    setName(""); setEmail(""); setRole("担当者");
+  };
+  const updateAcc = (id, patch) => {
+    const acc = accounts.find(a => a.id === id);
+    if (acc) {
+      const key = Object.keys(patch)[0];
+      onAudit?.("アカウント変更", `${acc.name} / ${key}`, acc[key], patch[key]);
+    }
+    setAccounts(as => as.map(a => a.id === id ? { ...a, ...patch } : a));
+  };
+  const removeAcc = (a) => {
+    if (a.id === currentUser?.id) { toast("ログイン中の自分自身は削除できません"); return; }
+    if (!window.confirm(`${a.name} を削除しますか？この操作は取り消せません。`)) return;
+    onDeleteAccount(a);
+  };
+
+  const logUsers = useMemo(() => ["全員", ...Array.from(new Set(logs.map(l => l.user)))], [logs]);
+  const logActions = useMemo(() => ["全操作", ...Array.from(new Set(logs.map(l => l.action)))], [logs]);
+  const filteredLogs = logs.filter(l => (logUser === "全員" || l.user === logUser) && (logAction === "全操作" || l.action === logAction));
+
+  const exportCsv = () => {
+    const header = ["日時", "ユーザー", "操作", "対象", "変更前", "変更後"];
+    const esc = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = filteredLogs.map(l => [l.at, l.user, l.action, l.target, l.before, l.after].map(esc).join(","));
+    const csv = "﻿" + [header.map(esc).join(","), ...rows].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `変更履歴_${nowText().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast("CSVをダウンロードしました");
+  };
+
+  return (
+    <div className="mx-auto px-8 py-6" style={{ maxWidth: 1440 }}>
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h1 className="text-xl font-semibold flex items-center gap-2" style={{ color: C.ink }}><ShieldCheck size={20} />管理者画面</h1>
+          <p className="text-sm mt-0.5" style={{ color: C.sub }}>アカウント管理・先方とのやり取り・変更履歴を確認できます。</p>
+        </div>
+        <Btn variant="outline" icon={LayoutDashboard} onClick={onBack}>ダッシュボードへ戻る</Btn>
+      </div>
+
+      <div className="flex gap-2 mb-4">
+        <Btn variant={tab === "accounts" ? "primary" : "outline"} icon={Users} onClick={() => setTab("accounts")}>アカウント管理</Btn>
+        <Btn variant={tab === "chats" ? "primary" : "outline"} icon={MessageSquare} onClick={() => setTab("chats")}>先方とのやり取り</Btn>
+        <Btn variant={tab === "logs" ? "primary" : "outline"} icon={History} onClick={() => setTab("logs")}>変更履歴</Btn>
+      </div>
+
+      {tab === "accounts" && (
+        <div className="grid gap-4" style={{ gridTemplateColumns: "minmax(0,4fr) minmax(0,8fr)" }}>
+          <Card>
+            <div className="text-sm font-semibold mb-3" style={{ color: C.ink }}>アカウントを追加</div>
+            <label className="text-xs block mb-1" style={{ color: C.sub }}>氏名</label>
+            <input value={name} onChange={e => setName(e.target.value)} className="w-full rounded border px-3 py-2 text-sm mb-3" style={{ borderColor: C.line2 }} placeholder="例：高橋 一郎" />
+            <label className="text-xs block mb-1" style={{ color: C.sub }}>メールアドレス</label>
+            <input value={email} onChange={e => setEmail(e.target.value)} className="w-full rounded border px-3 py-2 text-sm mb-3" style={{ borderColor: C.line2 }} placeholder="example@amaden-ss.co.jp" />
+            <label className="text-xs block mb-1" style={{ color: C.sub }}>権限</label>
+            <select value={role} onChange={e => setRole(e.target.value)} className="w-full rounded border px-3 py-2 text-sm mb-4" style={{ borderColor: C.line2 }}>
+              <option>管理者</option><option>担当者</option><option>閲覧者</option>
+            </select>
+            <Btn variant="primary" icon={UserPlus} onClick={add}>アカウントを追加</Btn>
+            <div className="mt-3 text-[11px] leading-relaxed" style={{ color: C.sub }}>管理者のみが、担当者の追加・停止・権限変更・削除を行えます（現在ログイン中：{currentUser?.name}）。</div>
+          </Card>
+          <Card pad={false}>
+            <div className="px-5 py-3 border-b" style={{ borderColor: C.line }}>
+              <div className="text-sm font-semibold" style={{ color: C.ink }}>登録アカウント</div>
+            </div>
+            <table className="w-full text-sm">
+              <thead><tr className="text-left" style={{ color: C.sub, backgroundColor: C.panel }}>
+                {['氏名','メール','権限','状態','登録日','操作'].map(h => <th key={h} className="px-5 py-2.5 font-medium text-xs">{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {accounts.map(a => (
+                  <React.Fragment key={a.id}>
+                    <tr className="border-t" style={{ borderColor: C.line }}>
+                      <td className="px-5 py-3" style={{ color: C.ink }}>{a.name}{a.id === currentUser?.id && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded" style={{ color: C.navy, backgroundColor: C.panel2 }}>自分</span>}</td>
+                      <td className="px-5 py-3 text-xs" style={{ color: C.sub }}>{a.email || "—"}</td>
+                      <td className="px-5 py-3">
+                        <select value={a.role} onChange={e => updateAcc(a.id, { role: e.target.value })} className="rounded border px-2 py-1 text-xs" style={{ borderColor: C.line2 }}>
+                          <option>管理者</option><option>担当者</option><option>閲覧者</option>
+                        </select>
+                      </td>
+                      <td className="px-5 py-3">
+                        <select value={a.status} onChange={e => updateAcc(a.id, { status: e.target.value })} className="rounded border px-2 py-1 text-xs" style={{ borderColor: C.line2 }}>
+                          <option>有効</option><option>停止</option>
+                        </select>
+                      </td>
+                      <td className="px-5 py-3 font-mono text-xs" style={{ color: C.sub }}>{a.created}</td>
+                      <td className="px-5 py-3">
+                        <Btn size="sm" variant="outline" onClick={() => setExpandedId(id => id === a.id ? null : a.id)}>{expandedId === a.id ? "閉じる" : "詳細"}</Btn>
+                      </td>
+                    </tr>
+                    {expandedId === a.id && (
+                      <tr className="border-t" style={{ borderColor: C.line, backgroundColor: C.panel }}>
+                        <td colSpan={6} className="px-5 py-3">
+                          <div className="flex items-end gap-3 flex-wrap">
+                            <div>
+                              <div className="text-[11px] mb-1" style={{ color: C.sub }}>メールアドレスを変更</div>
+                              <input defaultValue={a.email} onBlur={e => e.target.value !== a.email && updateAcc(a.id, { email: e.target.value })}
+                                className="rounded border px-2.5 py-1.5 text-xs" style={{ borderColor: C.line2, width: 240 }} />
+                            </div>
+                            <Btn size="sm" variant="outline" icon={Lock} onClick={() => { onAudit?.("パスワード再発行", a.name, "—", "再発行メール送信（想定）"); toast(`${a.name} 宛にパスワード再発行メールを送信しました（想定）`); }}>
+                              パスワード再発行
+                            </Btn>
+                            <Btn size="sm" variant="danger" icon={Trash2} onClick={() => removeAcc(a)}>このアカウントを削除</Btn>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+        </div>
+      )}
+
+      {tab === "chats" && (
+        <Card pad={false}>
+          <div className="px-5 py-3 border-b" style={{ borderColor: C.line }}>
+            <div className="text-sm font-semibold" style={{ color: C.ink }}>案件ごとの先方とのやり取り</div>
+            <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>各案件のチャットを横断で確認できます。AIエージェント操作の許可もここから切り替えられます。</div>
+          </div>
+          <table className="w-full text-sm">
+            <thead><tr className="text-left" style={{ color: C.sub, backgroundColor: C.panel }}>
+              {['管理番号','顧客名','担当者','直近のメッセージ','件数','AI操作','操作'].map(h => <th key={h} className="px-5 py-2.5 font-medium text-xs">{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {cases.map(c => {
+                const th = threads?.[c.ctrl];
+                const msgs = (th?.messages || []).filter(m => m.role !== "system");
+                const last = msgs[msgs.length - 1];
+                return (
+                  <tr key={c.id} className="border-t" style={{ borderColor: C.line }}>
+                    <td className="px-5 py-3 font-mono text-[13px]" style={{ color: C.navy }}>{c.ctrl}</td>
+                    <td className="px-5 py-3" style={{ color: C.ink }}>{c.customer}</td>
+                    <td className="px-5 py-3 text-xs" style={{ color: C.sub }}>{c.owner || "—"}</td>
+                    <td className="px-5 py-3 text-xs truncate" style={{ color: C.ink, maxWidth: 320 }}>
+                      {last ? <>{last.role === "customer" ? "先方：" : "社内："}{last.text}</> : <span style={{ color: C.sub }}>—</span>}
+                    </td>
+                    <td className="px-5 py-3 text-xs" style={{ color: C.sub }}>{msgs.length}</td>
+                    <td className="px-5 py-3">
+                      <span className="text-[11px] px-1.5 py-0.5 rounded" style={th?.aiEnabled ? { color: "#1e7d45", backgroundColor: "#e4efe6" } : { color: C.sub, backgroundColor: C.panel }}>
+                        {th?.aiEnabled ? "許可中" : "無効"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 flex items-center gap-1.5">
+                      <Btn size="sm" variant="outline" icon={MessageSquare} onClick={() => onOpenChat(c)}>開く</Btn>
+                      <button title="先方用リンクをコピー" onClick={() => onCopyLink(c)} className="p-1.5 rounded hover:bg-slate-100"><Link2 size={14} style={{ color: C.sub }} /></button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {tab === "logs" && (
+        <Card pad={false}>
+          <div className="px-5 py-3 border-b flex items-center justify-between flex-wrap gap-2" style={{ borderColor: C.line }}>
+            <div>
+              <div className="text-sm font-semibold" style={{ color: C.ink }}>変更履歴</div>
+              <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>ログイン、担当者変更、提出用プレビュー編集、アカウント操作などを記録しています。</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <select value={logUser} onChange={e => setLogUser(e.target.value)} className="rounded border px-2 py-1.5 text-xs" style={{ borderColor: C.line2 }}>
+                {logUsers.map(u => <option key={u}>{u}</option>)}
+              </select>
+              <select value={logAction} onChange={e => setLogAction(e.target.value)} className="rounded border px-2 py-1.5 text-xs" style={{ borderColor: C.line2 }}>
+                {logActions.map(a => <option key={a}>{a}</option>)}
+              </select>
+              <Btn size="sm" variant="outline" icon={FileText} onClick={exportCsv}>CSV出力</Btn>
+            </div>
+          </div>
+          <table className="w-full text-sm">
+            <thead><tr className="text-left" style={{ color: C.sub, backgroundColor: C.panel }}>
+              {['日時','ユーザー','操作','対象','変更前','変更後'].map(h => <th key={h} className="px-5 py-2.5 font-medium text-xs">{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {filteredLogs.map(l => (
+                <tr key={l.id} className="border-t" style={{ borderColor: C.line }}>
+                  <td className="px-5 py-3 font-mono text-xs" style={{ color: C.sub }}>{l.at}</td>
+                  <td className="px-5 py-3" style={{ color: C.ink }}>{l.user}</td>
+                  <td className="px-5 py-3"><span className="px-2 py-0.5 rounded text-xs" style={{ backgroundColor: C.panel2, color: C.navy }}>{l.action}</span></td>
+                  <td className="px-5 py-3" style={{ color: C.ink }}>{l.target}</td>
+                  <td className="px-5 py-3 text-xs" style={{ color: C.sub }}>{l.before}</td>
+                  <td className="px-5 py-3 text-xs" style={{ color: C.ink }}>{l.after}</td>
+                </tr>
+              ))}
+              {filteredLogs.length === 0 && (
+                <tr><td colSpan={6} className="px-5 py-8 text-center text-sm" style={{ color: C.sub }}>該当する履歴はありません。</td></tr>
+              )}
+            </tbody>
+          </table>
+        </Card>
+      )}
+      <div className="mt-4"><ProtoNote /></div>
+    </div>
+  );
+}
+
+/* ============================================================
+   ルート
+   ============================================================ */
+/* URLの #/customer/<管理番号> を読み取る（お客様ポータル用の簡易ルーティング） */
+const parseCustomerHash = () => {
+  const m = /^#\/customer\/(.+)$/.exec(window.location.hash || "");
+  return m ? decodeURIComponent(m[1]) : null;
+};
+
+function App() {
+  const [screen, setScreen] = useState("dashboard"); // dashboard / admin / casechat / workflow steps
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const stored = useMemo(() => loadStore(), []);
+  const [accounts, setAccounts] = useState(stored.accounts || ACCOUNTS_INIT);
+  const [auditLogs, setAuditLogs] = useState(stored.auditLogs || AUDIT_LOGS_INIT);
+  const [cases, setCases] = useState(stored.cases || CASES);
+  const [threads, setThreads] = useState(stored.threads || CASE_THREADS_INIT);
+  const [activeCase, setActiveCase] = useState(null);
+  const [fields, setFields] = useState(FIELDS_INIT);
+  const [phraseSel, setPhraseSel] = useState({});
+  const [measSel, setMeasSel] = useState({});
+  const [sheets, setSheets] = useState(SHEETS_INIT);
+  const [toastMsg, setToastMsg] = useState(null);
+  const [customerRoute, setCustomerRoute] = useState(parseCustomerHash);
+  const toast = m => setToastMsg(m);
+  const owners = accounts.filter(a => a.status === "有効").map(a => a.name);
+
+  // ブラウザ内保存（このプロトタイプはサーバーを持たないため、同じブラウザでのみ状態が残ります）
+  useEffect(() => { saveStore({ accounts }); }, [accounts]);
+  useEffect(() => { saveStore({ auditLogs }); }, [auditLogs]);
+  useEffect(() => { saveStore({ cases }); }, [cases]);
+  useEffect(() => { saveStore({ threads }); }, [threads]);
+
+  // お客様ポータルのURL（#/customer/<管理番号>）を監視
+  useEffect(() => {
+    const onHash = () => setCustomerRoute(parseCustomerHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  const audit = (action, target, before = "—", after = "—") => {
+    setAuditLogs(ls => [{ id: "l" + Date.now() + Math.random(), at: nowText(), user: currentUser?.name || "未ログイン", action, target, before: String(before || "—"), after: String(after || "—") }, ...ls]);
+  };
+  const addAccount = (name, email = "", role = "担当者") => {
+    if (accounts.some(a => a.name === name)) { toast(`${name} は既に登録済みです`); return; }
+    setAccounts(as => [...as, { id: "u" + Date.now(), name, email, role, status: "有効", created: nowText().slice(0,10) }]);
+    audit("アカウント追加", name, "—", role);
+    toast(`${name} を追加しました`);
+  };
+  const deleteAccount = (a) => {
+    setAccounts(as => as.filter(x => x.id !== a.id));
+    audit("アカウント削除", a.name, a.role, "削除済み");
+    toast(`${a.name} を削除しました`);
+  };
+
+  const maxReached = STEPS.findIndex(s => s.id === screen);
+
+  const threadFor = ctrl => threads[ctrl] || { aiEnabled: false, messages: [] };
+  const pushCaseMessage = (ctrl, msg) => {
+    setThreads(ts => {
+      const cur = ts[ctrl] || { aiEnabled: false, messages: [] };
+      return { ...ts, [ctrl]: { ...cur, messages: [...cur.messages, { id: "m" + Date.now() + Math.random(), at: nowText(), ...msg }] } };
+    });
+  };
+  const sendCaseMessage = (theCase, msg) => { if (theCase?.ctrl) pushCaseMessage(theCase.ctrl, msg); };
+  const toggleAi = (theCase, enabled) => {
+    if (!theCase?.ctrl) return;
+    setThreads(ts => ({ ...ts, [theCase.ctrl]: { ...(ts[theCase.ctrl] || { messages: [] }), aiEnabled: enabled } }));
+    audit("AIエージェント操作の許可変更", theCase.ctrl, enabled ? "無効" : "許可", enabled ? "許可" : "無効");
+  };
+  const copyCustomerLink = (theCase) => {
+    if (!theCase?.ctrl) return;
+    const url = `${window.location.origin}${window.location.pathname}#/customer/${encodeURIComponent(theCase.ctrl)}`;
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(url).then(() => toast("先方用リンクをコピーしました")).catch(() => toast(url));
+    } else { toast(url); }
+  };
+  const openChat = (c) => { setActiveCase(c); setScreen("casechat"); };
+
+  const updateOwner = (caseId, owner) => {
+    if (caseId) {
+      const targetCase = cases.find(c => c.id === caseId);
+      if (targetCase && targetCase.owner !== owner) {
+        audit("担当者変更", targetCase.ctrl, targetCase.owner || "未設定", owner || "未設定");
+        pushCaseMessage(targetCase.ctrl, { role: "system", author: "システム", text: `担当者が「${targetCase.owner || "未設定"}」から「${owner || "未設定"}」に変更されました。` });
+      }
+      setCases(cs => cs.map(c => c.id === caseId ? { ...c, owner } : c));
+    }
+    setActiveCase(c => c && (!caseId || c.id === caseId) ? { ...c, owner } : c);
+  };
+
+  const openCase = (c, at) => {
+    setActiveCase(c);
+    setFields(FIELDS_INIT.map(f => ({ ...f })));
+    setScreen(at);
+  };
+  const newCase = () => {
+    const c = { id: "c" + Date.now(), ctrl: "26MT1020B", customer: "近畿テクノ㈱エレベータ", kind: "交流", rewind: true, pages: 8, owner: owners[0] || "", status: "review", date: nowText().slice(0,10) };
+    setActiveCase(c);
+    setFields(FIELDS_INIT.map(f => ({ ...f })));
+    setScreen("upload");
+  };
+  const goHome = () => { setScreen("dashboard"); setActiveCase(null); };
+
+  const inFlow = !["dashboard", "admin", "casechat"].includes(screen);
+  const canManage = currentUser?.role !== "閲覧者";
+  const isAdmin = currentUser?.role === "管理者";
+
+  // お客様ポータル：ログイン不要でリンクから直接開く
+  if (customerRoute) {
+    const theCase = cases.find(c => c.ctrl === customerRoute) || null;
+    return (
+      <CustomerPortal
+        theCase={theCase}
+        thread={theCase ? threadFor(theCase.ctrl) : null}
+        onSend={(msg) => sendCaseMessage(theCase, msg)}
+        onBackToStaff={loggedIn ? () => { window.location.hash = ""; setCustomerRoute(null); } : null}
+      />
+    );
+  }
+
+  if (!loggedIn) {
+    return <LoginScreen accounts={accounts} onLogin={(u) => { setCurrentUser(u); setLoggedIn(true); setScreen("dashboard"); setAuditLogs(ls => [{ id: "l" + Date.now(), at: nowText(), user: u?.name || "未選択", action: "ログイン", target: "システム", before: "—", after: "成功" }, ...ls]); }} />;
+  }
+
+  return (
+    <div className="min-h-screen" style={{ backgroundColor: "#f0f2f5", fontFamily: "'Hiragino Kaku Gothic ProN','Yu Gothic',Meiryo,sans-serif" }}>
+      {/* ヘッダ */}
+      <header className="sticky top-0 z-40" style={{ backgroundColor: C.navy }}>
+        <div className="mx-auto flex items-center justify-between px-6 h-14" style={{ maxWidth: 1440 }}>
+          <button onClick={goHome} className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded flex items-center justify-center" style={{ backgroundColor: "rgba(255,255,255,.12)" }}>
+              <FileSpreadsheet size={17} className="text-white" />
+            </div>
+            <div className="text-left">
+              <div className="text-white text-sm font-semibold leading-tight">整備報告書【モータ】自動作成システム</div>
+              <div className="text-[10px] leading-tight" style={{ color: "#a9bdd4" }}>Amaden ／ 分解整備成績書 → 整備報告書</div>
+            </div>
+          </button>
+          <div className="flex items-center gap-4">
+            <div className="hidden lg:flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded" style={{ color: "#ffe3b0", backgroundColor: "rgba(255,255,255,.08)" }}>
+              <Info size={11} /> UIプロトタイプ（OCR・Excel・PDF・保存は本番実装時に接続）
+            </div>
+            {currentUser?.role === "管理者" && <Btn size="sm" variant="outline" icon={ShieldCheck} onClick={() => setScreen("admin")}>管理者</Btn>}
+            <div className="flex items-center gap-2 text-white text-xs">
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px]" style={{ backgroundColor: "rgba(255,255,255,.15)" }}>{(currentUser?.name || "担").slice(0,1)}</div>
+              <span className="hidden md:inline">{currentUser?.name}（{currentUser?.role}）</span>
+            </div>
+            <button onClick={() => { audit("ログアウト", "システム", "—", "実行"); setLoggedIn(false); setCurrentUser(null); }} className="text-[11px] flex items-center gap-1" style={{ color: "#cbd5e1" }}><LogOut size={12} />ログアウト</button>
+          </div>
+        </div>
+        {/* ステッパー（フロー中のみ） */}
+        {inFlow && (
+          <div style={{ backgroundColor: "#fff", borderBottom: `1px solid ${C.line}` }}>
+            <div className="mx-auto px-6 py-2 flex items-center justify-between gap-4" style={{ maxWidth: 1440 }}>
+              <Stepper current={screen} go={setScreen} maxReached={maxReached} />
+              <button onClick={goHome} className="text-xs whitespace-nowrap flex items-center gap-1" style={{ color: C.sub }}>
+                <LayoutDashboard size={13} />一覧へ
+              </button>
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* 本体 */}
+      <main>
+        {screen === "dashboard" && <Dashboard cases={cases} owners={owners} threads={threads} canManage={canManage} onNew={newCase} onOpen={openCase} onOwnerChange={updateOwner} onAddOwner={(name) => addAccount(name, "", "担当者")} onAdmin={() => setScreen("admin")} onOpenChat={openChat} onCopyLink={copyCustomerLink} />}
+        {screen === "admin" && isAdmin && <AdminPanel accounts={accounts} setAccounts={setAccounts} logs={auditLogs} cases={cases} threads={threads} currentUser={currentUser} onBack={() => setScreen("dashboard")} onAddAccount={addAccount} onDeleteAccount={deleteAccount} onAudit={audit} onOpenChat={openChat} onCopyLink={copyCustomerLink} toast={toast} />}
+        {screen === "casechat" && <CaseChatScreen theCase={activeCase} thread={threadFor(activeCase?.ctrl)} currentUserName={currentUser?.name} onSend={sendCaseMessage} onToggleAi={toggleAi} onCopyLink={copyCustomerLink} onBack={goHome} />}
+        {screen === "upload" && <UploadScreen theCase={activeCase} owners={owners} onStart={() => setScreen("processing")} onOwnerChange={updateOwner} onAddOwner={(name) => addAccount(name, "", "担当者")} />}
+        {screen === "processing" && <Processing theCase={activeCase} onDone={() => setScreen("review")} />}
+        {screen === "review" && <Review fields={fields} setFields={setFields} onNext={() => setScreen("work")} toast={toast} />}
+        {screen === "work" && <WorkContent fields={fields} phraseSel={phraseSel} setPhraseSel={setPhraseSel} onNext={() => setScreen("meas")} toast={toast} />}
+        {screen === "meas" && <Measurements measSel={measSel} setMeasSel={setMeasSel} onNext={() => setScreen("preview")} toast={toast} />}
+        {screen === "preview" && <Preview sheets={sheets} setSheets={setSheets} fields={fields} setFields={setFields} activeCase={activeCase} toast={toast} onAudit={audit} onNext={() => setScreen("done")} />}
+        {screen === "done" && <Done theCase={activeCase} toast={toast} onHome={goHome} />}
+      </main>
+
+      {toastMsg && <Toast msg={toastMsg} onClose={() => setToastMsg(null)} />}
+    </div>
+  );
+}
+
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+
+</script>
+</body>
+</html>
