@@ -3,7 +3,7 @@ import { firebaseReady } from "./lib/firebase";
 import { useAuth } from "./lib/useAuth";
 import { useCases, useProfiles, useAuditLogs, useThreadCounts, logActivity, pushSystemNote, createCase, toggleCaseLink } from "./lib/useData";
 import { C } from "./lib/theme";
-import { FileSpreadsheet, ShieldCheck, LogOut, Info, LayoutDashboard } from "./lib/icons";
+import { FileSpreadsheet, ShieldCheck, LogOut, Info, LayoutDashboard, ChevronLeft } from "./lib/icons";
 import { Btn, Toast } from "./components/ui";
 import { AuthScreen, PendingApproval, SuspendedNotice } from "./screens/AuthScreen";
 import { CustomerPortal } from "./screens/CustomerPortal";
@@ -52,10 +52,26 @@ function StaffApp() {
   const { logs } = useAuditLogs();
   const threadCounts = useThreadCounts(cases);
 
-  const [screen, setScreen] = useState("dashboard");
+  const [screen, setScreenRaw] = useState("dashboard");
+  const [screenHistory, setScreenHistory] = useState([]); // 「戻る」用のスタック
   const [activeCase, setActiveCase] = useState(null);
   const [toastMsg, setToastMsg] = useState(null);
   const toast = (m) => setToastMsg(m);
+
+  // 画面遷移は必ずこれを通す（forward）。前の画面をスタックに積んでおくことで「戻る」ができる。
+  const navigate = (next) => {
+    setScreenHistory((h) => [...h, screen]);
+    setScreenRaw(next);
+  };
+  const goBack = () => {
+    setScreenHistory((h) => {
+      if (h.length === 0) { setScreenRaw("dashboard"); return h; }
+      const copy = [...h];
+      const prev = copy.pop();
+      setScreenRaw(prev);
+      return copy;
+    });
+  };
 
   if (auth.loading) {
     return <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#f0f2f5" }} />;
@@ -76,7 +92,7 @@ function StaffApp() {
 
   const openCase = (c, at) => {
     setActiveCase(c);
-    setScreen(at);
+    navigate(at);
     logActivity(currentUser.name, "案件を開いた", c.ctrl, "—", STEPS.find((s) => s.id === at)?.name || at);
     pushSystemNote(c, `${currentUser.name} が案件を開きました（${STEPS.find((s) => s.id === at)?.name || at}）。`);
   };
@@ -87,14 +103,14 @@ function StaffApp() {
       const created = await createCase({ ctrl, customer: "新規案件（顧客名未設定）", kind: "交流", rewind: false, spec: "", owner: currentUser.name });
       await logActivity(currentUser.name, "案件登録", ctrl, "—", created.customer);
       setActiveCase(created);
-      setScreen("upload");
+      navigate("upload");
     } catch {
       toast("案件の作成に失敗しました");
     }
   };
 
-  const openChat = (c) => { setActiveCase(c); setScreen("casechat"); };
-  const goHome = () => { setScreen("dashboard"); setActiveCase(null); };
+  const openChat = (c) => { setActiveCase(c); navigate("casechat"); };
+  const goHome = () => { setScreenRaw("dashboard"); setActiveCase(null); setScreenHistory([]); };
 
   const copyLink = async (c) => {
     if (!c.linkToken) { toast("先方用リンクがまだ発行されていません"); return; }
@@ -131,7 +147,7 @@ function StaffApp() {
             <div className="hidden lg:flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded" style={{ color: "#ffe3b0", backgroundColor: "rgba(255,255,255,.08)" }}>
               <Info size={11} /> OCR・Excel・PDF・保存は未接続のモックです
             </div>
-            {isAdmin && <Btn size="sm" variant="outline" icon={ShieldCheck} onClick={() => setScreen("admin")}>管理者</Btn>}
+            {isAdmin && <Btn size="sm" variant="outline" icon={ShieldCheck} onClick={() => navigate("admin")}>管理者</Btn>}
             <div className="flex items-center gap-2 text-white text-xs">
               <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px]" style={{ backgroundColor: "rgba(255,255,255,.15)" }}>{(currentUser.name || "担").slice(0, 1)}</div>
               <span className="hidden md:inline">{currentUser.name}（{currentUser.role}）</span>
@@ -142,7 +158,14 @@ function StaffApp() {
         {inFlow && (
           <div style={{ backgroundColor: "#fff", borderBottom: `1px solid ${C.line}` }}>
             <div className="mx-auto px-6 py-2 flex items-center justify-between gap-4" style={{ maxWidth: 1440 }}>
-              <Stepper current={screen} go={setScreen} maxReached={maxReached} />
+              <div className="flex items-center gap-3">
+                <button onClick={goBack} disabled={screenHistory.length === 0}
+                  className="text-xs whitespace-nowrap flex items-center gap-1 px-2 py-1 rounded border"
+                  style={screenHistory.length === 0 ? { color: "#cbd5e1", borderColor: C.line, cursor: "default" } : { color: C.navy, borderColor: C.line2 }}>
+                  <ChevronLeft size={13} />戻る
+                </button>
+                <Stepper current={screen} go={navigate} maxReached={maxReached} />
+              </div>
               <button onClick={goHome} className="text-xs whitespace-nowrap flex items-center gap-1" style={{ color: C.sub }}><LayoutDashboard size={13} />一覧へ</button>
             </div>
           </div>
@@ -151,8 +174,8 @@ function StaffApp() {
 
       <main>
         {screen === "dashboard" && (
-          <Dashboard cases={cases} profiles={profiles} threadCounts={threadCounts} currentUser={currentUser} canManage={canManage}
-            onOpenCase={openCase} onNewCase={newCase} onAdmin={() => setScreen("admin")} onOpenChat={openChat} onCopyLink={copyLink} />
+          <Dashboard cases={cases} profiles={profiles} threadCounts={threadCounts} currentUser={currentUser} canManage={canManage} isAdmin={isAdmin}
+            onOpenCase={openCase} onNewCase={newCase} onAdmin={() => navigate("admin")} onOpenChat={openChat} onCopyLink={copyLink} />
         )}
         {screen === "admin" && isAdmin && (
           <AdminPanel profiles={profiles} cases={cases} threadCounts={threadCounts} currentUser={currentUser}
@@ -161,12 +184,12 @@ function StaffApp() {
         {screen === "casechat" && (
           <CaseChatScreen theCase={activeCaseLive} currentUser={currentUser} onCopyLink={copyLink} onToggleLink={handleToggleLink} onBack={goHome} />
         )}
-        {screen === "upload" && <UploadScreen theCase={activeCaseLive} owners={profiles.filter((p) => p.role !== "pending").map((p) => p.name)} onStart={() => setScreen("processing")} onAudit={onAudit} />}
-        {screen === "processing" && <Processing theCase={activeCaseLive} onDone={() => setScreen("review")} />}
-        {screen === "review" && <Review onNext={() => setScreen("work")} onAudit={onAudit} />}
-        {screen === "work" && <WorkContent onNext={() => setScreen("meas")} onAudit={onAudit} />}
-        {screen === "meas" && <Measurements onNext={() => setScreen("preview")} onAudit={onAudit} />}
-        {screen === "preview" && <Preview theCase={activeCaseLive} onNext={() => setScreen("done")} onAudit={onAudit} />}
+        {screen === "upload" && <UploadScreen theCase={activeCaseLive} owners={profiles.filter((p) => p.role !== "pending").map((p) => p.name)} onStart={() => navigate("processing")} onAudit={onAudit} />}
+        {screen === "processing" && <Processing theCase={activeCaseLive} onDone={() => navigate("review")} />}
+        {screen === "review" && <Review onNext={() => navigate("work")} onAudit={onAudit} />}
+        {screen === "work" && <WorkContent onNext={() => navigate("meas")} onAudit={onAudit} />}
+        {screen === "meas" && <Measurements onNext={() => navigate("preview")} onAudit={onAudit} />}
+        {screen === "preview" && <Preview theCase={activeCaseLive} onNext={() => navigate("done")} onAudit={onAudit} />}
         {screen === "done" && <Done theCase={activeCaseLive} onHome={goHome} />}
       </main>
 

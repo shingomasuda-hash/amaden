@@ -4,7 +4,7 @@ import { Plus, ShieldCheck, Filter, Search, MessageSquare, Link2, Eye, RotateCcw
 import { Btn, Card, Stat, StatusBadge, ProtoNote } from "../components/ui";
 import { logActivity, pushSystemNote, updateCaseOwner } from "../lib/useData";
 
-export function Dashboard({ cases, profiles, threadCounts, currentUser, canManage, onOpenCase, onNewCase, onAdmin, onOpenChat, onCopyLink }) {
+export function Dashboard({ cases, profiles, threadCounts, currentUser, canManage, isAdmin, onOpenCase, onNewCase, onAdmin, onOpenChat, onCopyLink }) {
   const monthOptions = useMemo(() => Array.from(new Set(cases.map((c) => (c.caseDate || "").slice(0, 7)).filter(Boolean))).sort().reverse(), [cases]);
   const [month, setMonth] = useState("all");
   const owners = profiles.filter((p) => p.status === "有効" && p.role !== "pending").map((p) => p.name);
@@ -36,7 +36,7 @@ export function Dashboard({ cases, profiles, threadCounts, currentUser, canManag
               {monthOptions.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
             </select>
           </div>
-          {canManage && <Btn variant="outline" size="lg" icon={ShieldCheck} onClick={onAdmin}>管理者画面</Btn>}
+          {isAdmin && <Btn variant="outline" size="lg" icon={ShieldCheck} onClick={onAdmin}>管理者画面</Btn>}
           {canManage && <Btn variant="primary" size="lg" icon={Plus} onClick={onNewCase}>新規案件登録</Btn>}
         </div>
       </div>
