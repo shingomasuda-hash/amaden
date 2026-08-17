@@ -27,9 +27,11 @@ export const CONF = {
 
 export const nowText = () => new Date().toISOString();
 
-export const fmtAt = (iso) => {
-  if (!iso) return "";
-  const d = new Date(iso);
+// Firestore の Timestamp（.toDate()を持つ）とISO文字列の両方を受け付ける
+export const fmtAt = (value) => {
+  if (!value) return "";
+  const d = typeof value?.toDate === "function" ? value.toDate() : new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
   const pad = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };

@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "../lib/supabase";
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../lib/firebase";
+import { getCaseByToken, logActivity } from "../lib/useData";
 import { C, STATUS } from "../lib/theme";
 import { FileSpreadsheet, ChevronLeft, Info, MessageSquare, Sparkles, Check } from "../lib/icons";
 import { Card, StatusBadge } from "../components/ui";
@@ -18,27 +20,25 @@ export function CustomerPortal({ token, onBackToStaff }) {
   const [messages, setMessages] = useState([]);
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase.rpc("get_case_by_token", { p_token: token });
-    if (error || !data || data.length === 0) { setState("notfound"); return; }
-    const first = data[0];
-    setInfo({ ctrl: first.ctrl, customer: first.customer, kind: first.kind, rewind: first.rewind, spec: first.spec, status: first.status, aiEnabled: first.ai_enabled });
-    setMessages(data.filter((r) => r.msg_id).map((r) => ({ id: r.msg_id, role: r.msg_role, author: r.msg_author, text: r.msg_text, created_at: r.msg_at })));
+    const data = await getCaseByToken(token);
+    if (!data || data.enabled === false) { setState("notfound"); return; }
+    setInfo(data);
     setState("ok");
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
 
-  // 先方からのポータルはRLSで守られたテーブルを直接subscribeできないため、
-  // ポーリングで新着メッセージを反映する（本人が送った直後の反映はsendの楽観更新でカバー）
   useEffect(() => {
     if (state !== "ok") return;
-    const t = setInterval(load, 5000);
-    return () => clearInterval(t);
-  }, [state, load]);
+    const q = query(collection(db, "caseLinks", token, "messages"), orderBy("created_at", "asc"));
+    const unsub = onSnapshot(q, (snap) => setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+    return unsub;
+  }, [state, token]);
 
   const send = async (role, author, text) => {
-    const { error } = await supabase.rpc("post_customer_message", { p_token: token, p_author: author, p_text: text });
-    if (!error) load();
+    await addDoc(collection(db, "caseLinks", token, "messages"), { role, author, text, created_at: serverTimestamp() });
+    const preview = text.length > 40 ? text.slice(0, 40) + "…" : text;
+    await logActivity(author, "メッセージ送信", `${info.ctrl}（先方）`, "—", preview);
   };
 
   return (

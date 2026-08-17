@@ -1,52 +1,57 @@
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "./supabase";
+import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut } from "firebase/auth";
+import { doc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "./firebase";
 
 /* 認証状態と自分のプロフィール（role/status）を管理するフック。
    role='pending' のうちはダッシュボードに入れない（管理者が承認するまで）。 */
 export function useAuth() {
-  const [session, setSession] = useState(null);
+  const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const loadProfile = useCallback(async (userId) => {
-    if (!userId) { setProfile(null); return; }
-    const { data } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
-    setProfile(data || null);
+  useEffect(() => {
+    if (!auth) { setLoading(false); return; }
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      if (!u) { setProfile(null); setLoading(false); }
+    });
+    return unsub;
   }, []);
 
+  // 自分のプロフィールをリアルタイム購読（管理者が権限を付与した瞬間に反映される）
   useEffect(() => {
-    if (!supabase) { setLoading(false); return; }
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session || null);
-      loadProfile(data.session?.user?.id).finally(() => setLoading(false));
+    if (!user) return;
+    const unsub = onSnapshot(doc(db, "profiles", user.uid), (snap) => {
+      setProfile(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+      setLoading(false);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
-      setSession(sess);
-      loadProfile(sess?.user?.id);
-    });
-    return () => sub.subscription.unsubscribe();
-  }, [loadProfile]);
+    return unsub;
+  }, [user]);
 
-  // 自分のプロフィール（role/status）が管理者に変更された時にリアルタイムで反映
-  useEffect(() => {
-    if (!supabase || !session?.user?.id) return;
-    const channel = supabase
-      .channel(`profile-${session.user.id}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${session.user.id}` },
-        (payload) => setProfile(payload.new))
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-  }, [session?.user?.id]);
+  const signUp = useCallback(async (email, password, name) => {
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      // profiles ドキュメントは本人が role='pending' でのみ作成できる（ルールで強制）
+      await setDoc(doc(db, "profiles", cred.user.uid), {
+        name, email, role: "pending", status: "有効", created_at: serverTimestamp(),
+      });
+      return null;
+    } catch (e) {
+      return e;
+    }
+  }, []);
 
-  const signUp = async (email, password, name) => {
-    const { error } = await supabase.auth.signUp({ email, password, options: { data: { name } } });
-    return error;
-  };
-  const signIn = async (email, password) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error;
-  };
-  const signOut = async () => { await supabase.auth.signOut(); };
+  const signIn = useCallback(async (email, password) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      return null;
+    } catch {
+      return new Error("auth-failed");
+    }
+  }, []);
 
-  return { session, profile, loading, signUp, signIn, signOut, user: session?.user || null };
+  const signOut = useCallback(async () => { await fbSignOut(auth); }, []);
+
+  return { user, profile, loading, session: user, signUp, signIn, signOut };
 }

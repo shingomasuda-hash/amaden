@@ -1,30 +1,31 @@
 import { useMemo, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "../lib/firebase";
 import { C, fmtAt } from "../lib/theme";
 import { ShieldCheck, Users, MessageSquare, History, LayoutDashboard, FileText, Link2 } from "../lib/icons";
 import { Btn, Card, ProtoNote } from "../components/ui";
 import { logActivity } from "../lib/useData";
 
-export function AdminPanel({ profiles, cases, caseLinks, threadCounts, currentUser, onBack, onOpenChat, onCopyLink, onToggleLink, logs, toast }) {
+export function AdminPanel({ profiles, cases, threadCounts, currentUser, onBack, onOpenChat, onCopyLink, onToggleLink, logs, toast }) {
   const [tab, setTab] = useState("accounts");
   const [logUser, setLogUser] = useState("全員");
   const [logAction, setLogAction] = useState("全操作");
 
   const updateProfile = async (p, patch) => {
     const key = Object.keys(patch)[0];
-    await supabase.from("profiles").update(patch).eq("id", p.id);
+    await updateDoc(doc(db, "profiles", p.id), patch);
     await logActivity(currentUser.name, "アカウント変更", `${p.name} / ${key}`, p[key], patch[key]);
     toast?.(`${p.name} を更新しました`);
   };
 
-  const logUsers = useMemo(() => ["全員", ...Array.from(new Set(logs.map((l) => l.user_name)))], [logs]);
+  const logUsers = useMemo(() => ["全員", ...Array.from(new Set(logs.map((l) => l.userName)))], [logs]);
   const logActions = useMemo(() => ["全操作", ...Array.from(new Set(logs.map((l) => l.action)))], [logs]);
-  const filteredLogs = logs.filter((l) => (logUser === "全員" || l.user_name === logUser) && (logAction === "全操作" || l.action === logAction));
+  const filteredLogs = logs.filter((l) => (logUser === "全員" || l.userName === logUser) && (logAction === "全操作" || l.action === logAction));
 
   const exportCsv = () => {
     const header = ["日時", "ユーザー", "操作", "対象", "変更前", "変更後"];
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const rows = filteredLogs.map((l) => [fmtAt(l.at), l.user_name, l.action, l.target, l.before_value, l.after_value].map(esc).join(","));
+    const rows = filteredLogs.map((l) => [fmtAt(l.at), l.userName, l.action, l.target, l.before, l.after].map(esc).join(","));
     const csv = "﻿" + [header.map(esc).join(","), ...rows].join("\r\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -77,14 +78,14 @@ export function AdminPanel({ profiles, cases, caseLinks, threadCounts, currentUs
                       <option>有効</option><option>停止</option>
                     </select>
                   </td>
-                  <td className="px-5 py-3 font-mono text-xs" style={{ color: C.sub }}>{(p.created_at || "").slice(0, 10)}</td>
+                  <td className="px-5 py-3 font-mono text-xs" style={{ color: C.sub }}>{fmtAt(p.created_at).slice(0, 10)}</td>
                   <td className="px-5 py-3 text-xs" style={{ color: C.sub }}>—</td>
                 </tr>
               ))}
             </tbody>
           </table>
           <div className="px-5 py-3 text-[11px]" style={{ color: C.sub }}>
-            アカウントの削除は現在ここからはできません（削除にはSupabaseの管理者操作が必要です。停止で無効化してください）。
+            アカウントの削除は現在ここからはできません（削除にはFirebaseの管理者操作が必要です。停止で無効化してください）。
           </div>
         </Card>
       )}
@@ -100,16 +101,16 @@ export function AdminPanel({ profiles, cases, caseLinks, threadCounts, currentUs
             </tr></thead>
             <tbody>
               {cases.map((c) => {
-                const linkEnabled = caseLinks[c.ctrl]?.enabled !== false;
+                const linkEnabled = c.linkEnabled !== false;
                 return (
-                  <tr key={c.id} className="border-t" style={{ borderColor: C.line }}>
+                  <tr key={c.ctrl} className="border-t" style={{ borderColor: C.line }}>
                     <td className="px-5 py-3 font-mono text-[13px]" style={{ color: C.navy }}>{c.ctrl}</td>
                     <td className="px-5 py-3" style={{ color: C.ink }}>{c.customer}</td>
                     <td className="px-5 py-3 text-xs" style={{ color: C.sub }}>{c.owner || "—"}</td>
                     <td className="px-5 py-3 text-xs" style={{ color: C.sub }}>{threadCounts?.[c.ctrl] ?? 0}</td>
                     <td className="px-5 py-3">
-                      <span className="text-[11px] px-1.5 py-0.5 rounded" style={c.ai_enabled ? { color: "#1e7d45", backgroundColor: "#e4efe6" } : { color: C.sub, backgroundColor: C.panel }}>
-                        {c.ai_enabled ? "許可中" : "無効"}
+                      <span className="text-[11px] px-1.5 py-0.5 rounded" style={c.aiEnabled ? { color: "#1e7d45", backgroundColor: "#e4efe6" } : { color: C.sub, backgroundColor: C.panel }}>
+                        {c.aiEnabled ? "許可中" : "無効"}
                       </span>
                     </td>
                     <td className="px-5 py-3">
@@ -151,11 +152,11 @@ export function AdminPanel({ profiles, cases, caseLinks, threadCounts, currentUs
               {filteredLogs.map((l) => (
                 <tr key={l.id} className="border-t" style={{ borderColor: C.line }}>
                   <td className="px-5 py-3 font-mono text-xs" style={{ color: C.sub }}>{fmtAt(l.at)}</td>
-                  <td className="px-5 py-3" style={{ color: C.ink }}>{l.user_name}</td>
+                  <td className="px-5 py-3" style={{ color: C.ink }}>{l.userName}</td>
                   <td className="px-5 py-3"><span className="px-2 py-0.5 rounded text-xs" style={{ backgroundColor: C.panel2, color: C.navy }}>{l.action}</span></td>
                   <td className="px-5 py-3" style={{ color: C.ink }}>{l.target}</td>
-                  <td className="px-5 py-3 text-xs" style={{ color: C.sub }}>{l.before_value}</td>
-                  <td className="px-5 py-3 text-xs" style={{ color: C.ink }}>{l.after_value}</td>
+                  <td className="px-5 py-3 text-xs" style={{ color: C.sub }}>{l.before}</td>
+                  <td className="px-5 py-3 text-xs" style={{ color: C.ink }}>{l.after}</td>
                 </tr>
               ))}
               {filteredLogs.length === 0 && <tr><td colSpan={6} className="px-5 py-8 text-center text-sm" style={{ color: C.sub }}>該当する履歴はありません。</td></tr>}

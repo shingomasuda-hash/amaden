@@ -1,15 +1,15 @@
-import { supabase } from "../lib/supabase";
 import { C } from "../lib/theme";
 import { ChevronLeft, Link2, Lock } from "../lib/icons";
 import { Btn, Card, ProtoNote } from "../components/ui";
 import { CaseChatPanel } from "../components/CaseChatPanel";
-import { useCaseThread, logActivity } from "../lib/useData";
+import { useCaseThread, logActivity, toggleCaseAi } from "../lib/useData";
 
-export function CaseChatScreen({ theCase, currentUser, linkEnabled, onCopyLink, onToggleLink, onBack }) {
-  const { messages, send } = useCaseThread(theCase?.ctrl);
+export function CaseChatScreen({ theCase, currentUser, onCopyLink, onToggleLink, onBack }) {
+  const { messages, send } = useCaseThread(theCase);
+  const linkEnabled = theCase?.linkEnabled !== false;
 
   const toggleAi = async (enabled) => {
-    await supabase.from("cases").update({ ai_enabled: enabled }).eq("ctrl", theCase.ctrl);
+    await toggleCaseAi(theCase, enabled);
     await logActivity(currentUser.name, "AIエージェント操作の許可変更", theCase.ctrl, enabled ? "無効" : "許可", enabled ? "許可" : "無効");
   };
 
@@ -34,7 +34,7 @@ export function CaseChatScreen({ theCase, currentUser, linkEnabled, onCopyLink, 
             messages={messages}
             onSend={send}
             viewerRole="internal" currentUserName={currentUser?.name}
-            aiEnabled={theCase?.ai_enabled} showAiToggle onToggleAi={toggleAi}
+            aiEnabled={theCase?.aiEnabled} showAiToggle onToggleAi={toggleAi}
           />
         </div>
       </Card>

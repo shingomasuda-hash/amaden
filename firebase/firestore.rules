@@ -1,0 +1,64 @@
+rules_version = '2';
+
+// 整備報告書【モータ】自動作成システム — Firestore セキュリティルール
+// Firebaseコンソール → Firestore Database → ルール にこのファイルの中身を
+// そのまま貼り付けて「公開」してください。
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+    function myProfile() { return get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data; }
+    // 管理者・担当者（＝実際に書き込みができるスタッフ）
+    function isStaff() { return isSignedIn() && myProfile().status == '有効' && myProfile().role in ['管理者', '担当者']; }
+    // 承認済み（閲覧者含む・pendingは除く）
+    function isActive() { return isSignedIn() && myProfile().status == '有効' && myProfile().role in ['管理者', '担当者', '閲覧者']; }
+    function isAdmin() { return isSignedIn() && myProfile().status == '有効' && myProfile().role == '管理者'; }
+
+    // ---------------- profiles（社内スタッフ） ----------------
+    match /profiles/{uid} {
+      allow read: if isSignedIn();
+      // サインアップ直後、本人が自分の行だけを role='pending' で作成できる
+      allow create: if isSignedIn() && request.auth.uid == uid
+                    && request.resource.data.role == 'pending'
+                    && request.resource.data.status == '有効';
+      // 管理者は誰でも編集可。本人は role/status を変えずに他の項目（名前など）だけ編集可
+      allow update: if isAdmin()
+                    || (isSignedIn() && request.auth.uid == uid
+                        && request.resource.data.role == resource.data.role
+                        && request.resource.data.status == resource.data.status);
+    }
+
+    // ---------------- cases（案件） ----------------
+    match /cases/{ctrl} {
+      allow read: if isActive();
+      allow create, update: if isStaff();
+    }
+
+    // ---------------- caseLinks（先方用の共有トークン。ドキュメントIDそのものがトークン） ----------------
+    // get（IDを知っている前提の1件取得）は誰でも許可、list（一覧取得）は禁止 — これにより
+    // トークンを知らない限り他の案件のリンクへ辿り着けない。
+    match /caseLinks/{token} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if isStaff();
+
+      // 案件ごとのチャット＋履歴タイムライン。正規のコレクションはここ一箇所のみ
+      // （社内側もこのサブコレクションをトークン経由で読み書きする）。
+      match /messages/{msgId} {
+        allow read: if isStaff()
+                    || get(/databases/$(database)/documents/caseLinks/$(token)).data.enabled == true;
+        allow create: if isStaff()
+                      || (get(/databases/$(database)/documents/caseLinks/$(token)).data.enabled == true
+                          && request.resource.data.role == 'customer');
+      }
+    }
+
+    // ---------------- auditLogs（全社共通の変更履歴） ----------------
+    match /auditLogs/{id} {
+      allow read: if isStaff();
+      // 先方からのメッセージ送信時は未ログインのまま1件だけ書き込む（内容はメッセージ送信の記録に限定）
+      allow create: if isStaff() || request.resource.data.action == 'メッセージ送信';
+    }
+  }
+}

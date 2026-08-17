@@ -66,7 +66,7 @@ export function ProtoNote({ inline, children }) {
     <div className={`flex items-start gap-1.5 text-[11px] leading-snug ${inline ? "" : "px-3 py-1.5 rounded border"}`}
       style={inline ? { color: "#94a3b8" } : { color: "#92826a", backgroundColor: "#fdf7ec", borderColor: "#f0e2c4" }}>
       <Info size={12} className="mt-0.5 shrink-0" />
-      <span>{children || "OCR、Excel出力、PDF生成、フォルダ保存は未接続のモックです。アカウント・案件・チャットはSupabaseに保存され、社内スタッフ間でリアルタイムに共有されます。"}</span>
+      <span>{children || "OCR、Excel出力、PDF生成、フォルダ保存は未接続のモックです。アカウント・案件・チャットはFirestoreに保存され、社内スタッフ間でリアルタイムに共有されます。"}</span>
     </div>
   );
 }

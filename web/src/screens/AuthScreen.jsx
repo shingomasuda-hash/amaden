@@ -78,7 +78,7 @@ export function AuthScreen({ auth }) {
           className="w-full text-center text-xs mt-4" style={{ color: C.navy }}>
           {mode === "login" ? "アカウントをお持ちでない方はこちら" : "既にアカウントをお持ちの方はこちら"}
         </button>
-        <div className="mt-4"><ProtoNote>ログインはSupabase Authによる本物の認証です。新規登録後は管理者が権限を付与するまで「承認待ち」になります。</ProtoNote></div>
+        <div className="mt-4"><ProtoNote>ログインはFirebase Authによる本物の認証です。新規登録後は管理者が権限を付与するまで「承認待ち」になります。</ProtoNote></div>
       </Card>
     </div>
   );

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { supabase, supabaseReady } from "./lib/supabase";
+import { firebaseReady } from "./lib/firebase";
 import { useAuth } from "./lib/useAuth";
-import { useCases, useProfiles, useCaseLinks, useAuditLogs, useThreadCounts, logActivity, pushSystemNote } from "./lib/useData";
+import { useCases, useProfiles, useAuditLogs, useThreadCounts, logActivity, pushSystemNote, createCase, toggleCaseLink } from "./lib/useData";
 import { C } from "./lib/theme";
 import { FileSpreadsheet, ShieldCheck, LogOut, Info, LayoutDashboard } from "./lib/icons";
 import { Btn, Toast } from "./components/ui";
@@ -22,10 +22,10 @@ function MissingConfig() {
   return (
     <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "#f0f2f5" }}>
       <div className="max-w-md text-sm rounded-lg border bg-white p-6" style={{ borderColor: C.line, color: C.ink }}>
-        <div className="font-semibold mb-2">Supabaseの接続設定がありません</div>
+        <div className="font-semibold mb-2">Firebaseの接続設定がありません</div>
         <p className="text-xs" style={{ color: C.sub }}>
           <code>.env.local</code>（または Vercel のプロジェクト環境変数）に
-          <code>VITE_SUPABASE_URL</code> と <code>VITE_SUPABASE_ANON_KEY</code> を設定してください。
+          <code>VITE_FIREBASE_*</code> の値を設定してください（<code>web/README.md</code> 参照）。
         </p>
       </div>
     </div>
@@ -40,7 +40,7 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  if (!supabaseReady) return <MissingConfig />;
+  if (!firebaseReady) return <MissingConfig />;
   if (customerToken) return <CustomerPortal token={customerToken} />;
   return <StaffApp />;
 }
@@ -49,9 +49,8 @@ function StaffApp() {
   const auth = useAuth();
   const { cases } = useCases();
   const { profiles } = useProfiles();
-  const { links: caseLinks, ensureLink, toggleLink } = useCaseLinks();
   const { logs } = useAuditLogs();
-  const threadCounts = useThreadCounts();
+  const threadCounts = useThreadCounts(cases);
 
   const [screen, setScreen] = useState("dashboard");
   const [activeCase, setActiveCase] = useState(null);
@@ -61,7 +60,7 @@ function StaffApp() {
   if (auth.loading) {
     return <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#f0f2f5" }} />;
   }
-  if (!auth.session) return <AuthScreen auth={auth} />;
+  if (!auth.user) return <AuthScreen auth={auth} />;
   if (!auth.profile) return <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#f0f2f5" }} />;
   if (auth.profile.status === "停止") return <SuspendedNotice onSignOut={auth.signOut} />;
   if (auth.profile.role === "pending") return <PendingApproval profile={auth.profile} onSignOut={auth.signOut} />;
@@ -72,30 +71,34 @@ function StaffApp() {
   const maxReached = STEPS.findIndex((s) => s.id === screen);
   const inFlow = !["dashboard", "admin", "casechat"].includes(screen);
 
+  // 表示中の案件は cases 一覧のリアルタイム更新にも追従させる（linkEnabled/aiEnabled等の反映用）
+  const activeCaseLive = activeCase ? cases.find((c) => c.ctrl === activeCase.ctrl) || activeCase : null;
+
   const openCase = (c, at) => {
     setActiveCase(c);
     setScreen(at);
     logActivity(currentUser.name, "案件を開いた", c.ctrl, "—", STEPS.find((s) => s.id === at)?.name || at);
-    pushSystemNote(c.ctrl, `${currentUser.name} が案件を開きました（${STEPS.find((s) => s.id === at)?.name || at}）。`);
+    pushSystemNote(c, `${currentUser.name} が案件を開きました（${STEPS.find((s) => s.id === at)?.name || at}）。`);
   };
 
   const newCase = async () => {
     const ctrl = `26MT${Math.floor(1000 + Math.random() * 9000)}`;
-    const { data, error } = await supabase.from("cases").insert({
-      ctrl, customer: "新規案件（顧客名未設定）", kind: "交流", rewind: false, spec: "", status: "review", owner: currentUser.name,
-    }).select().single();
-    if (error) { toast("案件の作成に失敗しました"); return; }
-    await logActivity(currentUser.name, "案件登録", ctrl, "—", data.customer);
-    setActiveCase(data);
-    setScreen("upload");
+    try {
+      const created = await createCase({ ctrl, customer: "新規案件（顧客名未設定）", kind: "交流", rewind: false, spec: "", owner: currentUser.name });
+      await logActivity(currentUser.name, "案件登録", ctrl, "—", created.customer);
+      setActiveCase(created);
+      setScreen("upload");
+    } catch {
+      toast("案件の作成に失敗しました");
+    }
   };
 
   const openChat = (c) => { setActiveCase(c); setScreen("casechat"); };
   const goHome = () => { setScreen("dashboard"); setActiveCase(null); };
 
   const copyLink = async (c) => {
-    const token = await ensureLink(c.ctrl);
-    const url = `${window.location.origin}${window.location.pathname}#/customer/${token}`;
+    if (!c.linkToken) { toast("先方用リンクがまだ発行されていません"); return; }
+    const url = `${window.location.origin}${window.location.pathname}#/customer/${c.linkToken}`;
     try {
       await navigator.clipboard.writeText(url);
       toast("先方用リンクをコピーしました");
@@ -104,9 +107,13 @@ function StaffApp() {
     }
   };
 
+  const handleToggleLink = async (c) => {
+    await toggleCaseLink(c);
+  };
+
   const onAudit = (action, target, before, after) => {
     logActivity(currentUser.name, action, target, before, after);
-    if (activeCase?.ctrl) pushSystemNote(activeCase.ctrl, `${currentUser.name} が「${action}」を行いました（${target}${after && after !== "—" ? ` → ${after}` : ""}）`);
+    if (activeCaseLive) pushSystemNote(activeCaseLive, `${currentUser.name} が「${action}」を行いました（${target}${after && after !== "—" ? ` → ${after}` : ""}）`);
   };
 
   return (
@@ -144,24 +151,23 @@ function StaffApp() {
 
       <main>
         {screen === "dashboard" && (
-          <Dashboard cases={cases} profiles={profiles} caseLinks={caseLinks} currentUser={currentUser} canManage={canManage}
+          <Dashboard cases={cases} profiles={profiles} threadCounts={threadCounts} currentUser={currentUser} canManage={canManage}
             onOpenCase={openCase} onNewCase={newCase} onAdmin={() => setScreen("admin")} onOpenChat={openChat} onCopyLink={copyLink} />
         )}
         {screen === "admin" && isAdmin && (
-          <AdminPanel profiles={profiles} cases={cases} caseLinks={caseLinks} threadCounts={threadCounts} currentUser={currentUser}
-            onBack={goHome} onOpenChat={openChat} onCopyLink={copyLink} onToggleLink={(c) => toggleLink(c.ctrl)} logs={logs} toast={toast} />
+          <AdminPanel profiles={profiles} cases={cases} threadCounts={threadCounts} currentUser={currentUser}
+            onBack={goHome} onOpenChat={openChat} onCopyLink={copyLink} onToggleLink={handleToggleLink} logs={logs} toast={toast} />
         )}
         {screen === "casechat" && (
-          <CaseChatScreen theCase={activeCase} currentUser={currentUser} linkEnabled={caseLinks[activeCase?.ctrl]?.enabled !== false}
-            onCopyLink={copyLink} onToggleLink={(c) => toggleLink(c.ctrl)} onBack={goHome} />
+          <CaseChatScreen theCase={activeCaseLive} currentUser={currentUser} onCopyLink={copyLink} onToggleLink={handleToggleLink} onBack={goHome} />
         )}
-        {screen === "upload" && <UploadScreen theCase={activeCase} owners={profiles.filter((p) => p.role !== "pending").map((p) => p.name)} onStart={() => setScreen("processing")} onAudit={onAudit} />}
-        {screen === "processing" && <Processing theCase={activeCase} onDone={() => setScreen("review")} />}
+        {screen === "upload" && <UploadScreen theCase={activeCaseLive} owners={profiles.filter((p) => p.role !== "pending").map((p) => p.name)} onStart={() => setScreen("processing")} onAudit={onAudit} />}
+        {screen === "processing" && <Processing theCase={activeCaseLive} onDone={() => setScreen("review")} />}
         {screen === "review" && <Review onNext={() => setScreen("work")} onAudit={onAudit} />}
         {screen === "work" && <WorkContent onNext={() => setScreen("meas")} onAudit={onAudit} />}
         {screen === "meas" && <Measurements onNext={() => setScreen("preview")} onAudit={onAudit} />}
-        {screen === "preview" && <Preview theCase={activeCase} onNext={() => setScreen("done")} onAudit={onAudit} />}
-        {screen === "done" && <Done theCase={activeCase} onHome={goHome} />}
+        {screen === "preview" && <Preview theCase={activeCaseLive} onNext={() => setScreen("done")} onAudit={onAudit} />}
+        {screen === "done" && <Done theCase={activeCaseLive} onHome={goHome} />}
       </main>
 
       {toastMsg && <Toast msg={toastMsg} onClose={() => setToastMsg(null)} />}

@@ -1,170 +1,161 @@
-import { useEffect, useState, useCallback } from "react";
-import { supabase } from "./supabase";
+import { useEffect, useState, useCallback, useRef } from "react";
+import {
+  collection, doc, onSnapshot, query, orderBy, limit, addDoc, setDoc, updateDoc,
+  serverTimestamp, getDoc,
+} from "firebase/firestore";
+import { db } from "./firebase";
+
+const genToken = () => {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+  return Array.from({ length: 16 }, () => "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]).join("");
+};
 
 /* 案件一覧（リアルタイム同期） */
 export function useCases() {
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const reload = useCallback(async () => {
-    const { data } = await supabase.from("cases").select("*").order("created_at", { ascending: false });
-    setCases(data || []);
-  }, []);
-
   useEffect(() => {
-    reload().finally(() => setLoading(false));
-    const channel = supabase
-      .channel("cases-all")
-      .on("postgres_changes", { event: "*", schema: "public", table: "cases" }, () => reload())
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-  }, [reload]);
-
-  return { cases, loading, reload };
+    const unsub = onSnapshot(collection(db, "cases"), (snap) => {
+      setCases(snap.docs.map((d) => ({ id: d.id, ctrl: d.id, ...d.data() })));
+      setLoading(false);
+    });
+    return unsub;
+  }, []);
+  return { cases, loading };
 }
 
 /* 社内スタッフ一覧（承認待ちも含む） */
 export function useProfiles() {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const reload = useCallback(async () => {
-    const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending: true });
-    setProfiles(data || []);
-  }, []);
-
   useEffect(() => {
-    reload().finally(() => setLoading(false));
-    const channel = supabase
-      .channel("profiles-all")
-      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => reload())
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-  }, [reload]);
-
-  return { profiles, loading, reload };
+    const unsub = onSnapshot(collection(db, "profiles"), (snap) => {
+      setProfiles(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    });
+    return unsub;
+  }, []);
+  return { profiles, loading };
 }
 
-/* 案件ごとのチャット／履歴タイムライン（リアルタイム） */
-export function useCaseThread(ctrl) {
+/* 案件ごとのチャット／履歴タイムライン（リアルタイム）。
+   正規のメッセージ保存場所は caseLinks/{token}/messages（社内・先方共通）。 */
+export function useCaseThread(theCase) {
+  const token = theCase?.linkToken;
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const reload = useCallback(async () => {
-    if (!ctrl) { setMessages([]); return; }
-    const { data } = await supabase.from("case_messages").select("*").eq("ctrl", ctrl).order("created_at", { ascending: true });
-    setMessages(data || []);
-  }, [ctrl]);
-
   useEffect(() => {
-    if (!ctrl) { setMessages([]); setLoading(false); return; }
+    if (!token) { setMessages([]); setLoading(false); return; }
     setLoading(true);
-    reload().finally(() => setLoading(false));
-    const channel = supabase
-      .channel(`case-messages-${ctrl}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "case_messages", filter: `ctrl=eq.${ctrl}` },
-        (payload) => setMessages((ms) => ms.some(m => m.id === payload.new.id) ? ms : [...ms, payload.new]))
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-  }, [ctrl, reload]);
+    const q = query(collection(db, "caseLinks", token, "messages"), orderBy("created_at", "asc"));
+    const unsub = onSnapshot(q, (snap) => {
+      setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    });
+    return unsub;
+  }, [token]);
 
   const send = useCallback(async (role, author, text) => {
-    if (!ctrl || !text.trim()) return;
-    await supabase.from("case_messages").insert({ ctrl, role, author, text });
+    if (!token || !text.trim()) return;
+    await addDoc(collection(db, "caseLinks", token, "messages"), { role, author, text, created_at: serverTimestamp() });
     const preview = text.length > 40 ? text.slice(0, 40) + "…" : text;
-    await logActivity(author, "メッセージ送信", `${ctrl}（${role === "customer" ? "先方" : "社内"}）`, "—", preview);
-  }, [ctrl]);
+    await logActivity(author, "メッセージ送信", `${theCase.ctrl}（${role === "customer" ? "先方" : "社内"}）`, "—", preview);
+  }, [token, theCase?.ctrl]);
 
   return { messages, loading, send };
-}
-
-/* 案件ごとのメッセージ件数（管理者画面の一覧用） */
-export function useThreadCounts() {
-  const [counts, setCounts] = useState({});
-  const reload = useCallback(async () => {
-    const { data } = await supabase.from("case_messages").select("ctrl").neq("role", "system");
-    const map = {};
-    (data || []).forEach((r) => { map[r.ctrl] = (map[r.ctrl] || 0) + 1; });
-    setCounts(map);
-  }, []);
-  useEffect(() => {
-    reload();
-    const channel = supabase
-      .channel("thread-counts-all")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "case_messages" }, () => reload())
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-  }, [reload]);
-  return counts;
 }
 
 /* 全社共通の変更履歴（監査ログ） */
 export function useAuditLogs() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const reload = useCallback(async () => {
-    const { data } = await supabase.from("audit_logs").select("*").order("at", { ascending: false }).limit(500);
-    setLogs(data || []);
-  }, []);
-
   useEffect(() => {
-    reload().finally(() => setLoading(false));
-    const channel = supabase
-      .channel("audit-logs-all")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "audit_logs" },
-        (payload) => setLogs((ls) => [payload.new, ...ls]))
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-  }, [reload]);
-
+    const q = query(collection(db, "auditLogs"), orderBy("at", "desc"), limit(500));
+    const unsub = onSnapshot(q, (snap) => {
+      setLogs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    });
+    return unsub;
+  }, []);
   return { logs, loading };
 }
 
 /* 監査ログ記録のヘルパー（誰が・どこを触ったかを1件書き込む） */
 export async function logActivity(userName, action, target, before = "—", after = "—") {
-  await supabase.from("audit_logs").insert({
-    user_name: userName || "未ログイン", action, target,
-    before_value: String(before ?? "—"), after_value: String(after ?? "—"),
+  await addDoc(collection(db, "auditLogs"), {
+    at: serverTimestamp(), userName: userName || "未ログイン", action, target,
+    before: String(before ?? "—"), after: String(after ?? "—"),
   });
 }
 
 /* 案件チャットへシステムメッセージを1件追加 */
-export async function pushSystemNote(ctrl, text) {
-  if (!ctrl) return;
-  await supabase.from("case_messages").insert({ ctrl, role: "system", author: "システム", text });
+export async function pushSystemNote(theCase, text) {
+  if (!theCase?.linkToken) return;
+  await addDoc(collection(db, "caseLinks", theCase.linkToken, "messages"), { role: "system", author: "システム", text, created_at: serverTimestamp() });
 }
 
-/* 案件ごとの先方リンク（トークン）管理 */
-export function useCaseLinks() {
-  const [links, setLinks] = useState({});
-  const reload = useCallback(async () => {
-    const { data } = await supabase.from("case_links").select("*");
-    const map = {};
-    (data || []).forEach((l) => { map[l.ctrl] = l; });
-    setLinks(map);
-  }, []);
+/* 新しい案件を作成（cases と、先方リンクの実体である caseLinks を同時に作る） */
+export async function createCase({ ctrl, customer, kind, rewind, spec, owner }) {
+  const token = genToken();
+  const caseDoc = {
+    customer, kind, rewind, spec: spec || "", status: "review", owner: owner || "",
+    aiEnabled: false, linkToken: token, linkEnabled: true,
+    caseDate: new Date().toISOString().slice(0, 10),
+    created_at: serverTimestamp(), updated_at: serverTimestamp(),
+  };
+  await setDoc(doc(db, "cases", ctrl), caseDoc);
+  await setDoc(doc(db, "caseLinks", token), { ctrl, enabled: true, customer, kind, rewind, spec: spec || "", status: "review", aiEnabled: false });
+  return { id: ctrl, ctrl, ...caseDoc };
+}
+
+export async function updateCaseOwner(theCase, owner) {
+  await updateDoc(doc(db, "cases", theCase.ctrl), { owner, updated_at: serverTimestamp() });
+}
+
+export async function toggleCaseAi(theCase, enabled) {
+  await updateDoc(doc(db, "cases", theCase.ctrl), { aiEnabled: enabled });
+  if (theCase.linkToken) await updateDoc(doc(db, "caseLinks", theCase.linkToken), { aiEnabled: enabled });
+}
+
+export async function toggleCaseLink(theCase) {
+  const wasEnabled = theCase.linkEnabled !== false;
+  await updateDoc(doc(db, "cases", theCase.ctrl), { linkEnabled: !wasEnabled });
+  if (theCase.linkToken) await updateDoc(doc(db, "caseLinks", theCase.linkToken), { enabled: !wasEnabled });
+  return !wasEnabled;
+}
+
+/* 先方ポータル：トークンから案件情報を取得（未ログインで呼ばれる） */
+export async function getCaseByToken(token) {
+  const snap = await getDoc(doc(db, "caseLinks", token));
+  return snap.exists() ? snap.data() : null;
+}
+
+/* 案件ごとのメッセージ件数（管理者画面の一覧用）。case一覧の token を購読して集計する。 */
+export function useThreadCounts(cases) {
+  const [counts, setCounts] = useState({});
+  const unsubsRef = useRef({});
+  const tokenToCtrl = {};
+  cases.forEach((c) => { if (c.linkToken) tokenToCtrl[c.linkToken] = c.ctrl; });
+  const tokensKey = Object.keys(tokenToCtrl).sort().join(",");
+
   useEffect(() => {
-    reload();
-    const channel = supabase
-      .channel("case-links-all")
-      .on("postgres_changes", { event: "*", schema: "public", table: "case_links" }, () => reload())
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-  }, [reload]);
+    const tokens = new Set(Object.keys(tokenToCtrl));
+    Object.keys(unsubsRef.current).forEach((token) => {
+      if (!tokens.has(token)) { unsubsRef.current[token](); delete unsubsRef.current[token]; }
+    });
+    tokens.forEach((token) => {
+      if (unsubsRef.current[token]) return;
+      const ctrl = tokenToCtrl[token];
+      unsubsRef.current[token] = onSnapshot(collection(db, "caseLinks", token, "messages"), (snap) => {
+        const n = snap.docs.filter((d) => d.data().role !== "system").length;
+        setCounts((cs) => ({ ...cs, [ctrl]: n }));
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokensKey]);
 
-  const ensureLink = useCallback(async (ctrl) => {
-    const { data } = await supabase.from("case_links").select("*").eq("ctrl", ctrl).maybeSingle();
-    if (data) return data.token;
-    const { data: created } = await supabase.from("case_links").insert({ ctrl }).select().single();
-    return created?.token;
-  }, []);
+  useEffect(() => () => { Object.values(unsubsRef.current).forEach((u) => u()); }, []);
 
-  const toggleLink = useCallback(async (ctrl) => {
-    const cur = links[ctrl];
-    if (!cur) { await ensureLink(ctrl); return; }
-    await supabase.from("case_links").update({ enabled: !cur.enabled }).eq("ctrl", ctrl);
-  }, [links, ensureLink]);
-
-  return { links, ensureLink, toggleLink };
+  return counts;
 }

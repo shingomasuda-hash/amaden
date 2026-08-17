@@ -4,14 +4,14 @@
 
 ## 🟢 `web/` — 本番構成（実際に運用するのはこちら）
 
-Vite + React + **Supabase**（認証・データベース・リアルタイム同期）+ **Vercel**（ホスティング）構成です。
+Vite + React + **Firebase**（認証・Firestore・リアルタイム同期）+ **Vercel**（ホスティング）構成です。Cloud Functions（有料プラン相当）を使わず、無料のSparkプランの範囲内で動きます。
 
-- 本物のログイン認証（Supabase Auth・メール＋パスワード、新規登録は管理者承認制）
+- 本物のログイン認証（Firebase Authentication・メール＋パスワード、新規登録は管理者承認制）
 - 社内・先方でリアルタイムに同期する案件データ・チャット（他の端末にも即座に反映）
-- 先方ポータルはログイン不要のトークンリンクのまま、RLSで安全にアクセス制御
+- 先方ポータルはログイン不要のトークンリンクのまま、Firestoreセキュリティルールで安全にアクセス制御
 - 「誰がどこを触ったか」の変更履歴を記録
 
-セットアップ手順は **[`web/README.md`](web/README.md)** を参照してください。DBスキーマは [`supabase/schema.sql`](supabase/schema.sql) にあります。
+セットアップ手順は **[`web/README.md`](web/README.md)** を参照してください。セキュリティルールは [`firebase/firestore.rules`](firebase/firestore.rules) にあります。
 
 ## 🟡 `src/app.html` — UIプロトタイプ（GitHub Pages版・参考用）
 
