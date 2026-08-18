@@ -41,7 +41,19 @@ export function UploadScreen({ theCase, owners, onStart, onAudit }) {
   const [file, setFile] = useState(null);
   const [photos, setPhotos] = useState([]);
   const [drag, setDrag] = useState(false);
-  const pick = () => setFile({ name: `成績書_${theCase?.customer?.replace(/[㈱\s]/g, "") || "新規"}_${theCase?.ctrl || "26MTxxxx"}.pdf`, pages: 8 });
+  const [err, setErr] = useState("");
+  const inputRef = useRef(null);
+
+  const acceptFile = (f) => {
+    if (!f) return;
+    if (f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf")) {
+      setErr("PDFファイルを選択してください");
+      return;
+    }
+    setErr("");
+    setFile(f);
+  };
+
   return (
     <div className="mx-auto px-8 py-6" style={{ maxWidth: 1440 }}>
       <h1 className="text-lg font-semibold mb-4" style={{ color: C.ink }}>手書きPDFのアップロード</h1>
@@ -49,22 +61,25 @@ export function UploadScreen({ theCase, owners, onStart, onAudit }) {
         <div className="col-span-2 space-y-4">
           <Card>
             <div className="text-sm font-semibold mb-3" style={{ color: C.ink }}>スキャン済み成績書（手書きPDF）</div>
+            <input ref={inputRef} type="file" accept="application/pdf" className="hidden"
+              onChange={(e) => acceptFile(e.target.files?.[0])} />
             <div onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
-              onDrop={(e) => { e.preventDefault(); setDrag(false); pick(); }}
+              onDrop={(e) => { e.preventDefault(); setDrag(false); acceptFile(e.dataTransfer.files?.[0]); }}
               className="rounded-lg border-2 border-dashed flex flex-col items-center justify-center py-12 transition-colors"
               style={{ borderColor: drag ? C.navy : C.line2, backgroundColor: drag ? "#f0f5fa" : C.panel }}>
               <UploadIcon size={30} style={{ color: C.navy }} />
               <div className="text-sm mt-3" style={{ color: C.ink }}>PDFをここにドラッグ＆ドロップ</div>
               <div className="text-xs mt-1 mb-3" style={{ color: C.sub }}>または</div>
-              <Btn variant="outline" icon={FileText} onClick={pick}>ファイルを選択</Btn>
+              <Btn variant="outline" icon={FileText} onClick={() => inputRef.current?.click()}>ファイルを選択</Btn>
             </div>
+            {err && <div className="text-xs mt-2" style={{ color: "#dc2626" }}>{err}</div>}
             {file && (
               <div className="mt-4 flex items-center justify-between rounded border px-4 py-3" style={{ borderColor: C.line, backgroundColor: "#fff" }}>
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded flex items-center justify-center" style={{ backgroundColor: "#fde8e8" }}><FileText size={18} style={{ color: "#c0392b" }} /></div>
                   <div>
                     <div className="text-sm" style={{ color: C.ink }}>{file.name}</div>
-                    <div className="text-xs" style={{ color: C.sub }}>PDF ・ {file.pages}ページ ・ 2.4 MB</div>
+                    <div className="text-xs" style={{ color: C.sub }}>PDF ・ {(file.size / 1024 / 1024).toFixed(1)} MB</div>
                   </div>
                 </div>
                 <button onClick={() => setFile(null)} className="p-1.5 rounded hover:bg-slate-100"><X size={16} style={{ color: C.sub }} /></button>
@@ -96,7 +111,7 @@ export function UploadScreen({ theCase, owners, onStart, onAudit }) {
               <div className="flex justify-between"><span style={{ color: C.sub }}>担当者</span><span style={{ color: C.ink }}>{theCase?.owner || owners[0] || "—"}</span></div>
             </div>
           </Card>
-          <Btn variant="primary" size="lg" icon={Cpu} disabled={!file} onClick={() => { onAudit?.("AI読み取り開始", theCase?.ctrl || "新規案件", file?.name || "—", "読み取り開始"); onStart(); }}>
+          <Btn variant="primary" size="lg" icon={Cpu} disabled={!file} onClick={() => { onAudit?.("AI読み取り開始", theCase?.ctrl || "新規案件", file?.name || "—", "読み取り開始"); onStart(file); }}>
             AI読み取りを開始
           </Btn>
           {!file && <div className="text-[11px] text-center" style={{ color: C.sub }}>PDFを選択すると開始できます</div>}
@@ -154,9 +169,22 @@ export function Processing({ theCase, onDone }) {
 }
 
 const REVIEW_FILTERS = ["要確認項目のみ", "全項目", "基本情報", "本体仕様", "作業内容", "測定値", "不具合・処置", "固定子コイル巻替"];
-export function Review({ onNext, onAudit }) {
-  // OCRは未接続のため、案件ごとに前回のダミーデータが残らないよう空の状態から始める
-  const [fields, setFields] = useState([]);
+// Claudeの読み取り結果（confごとに status/id を補って画面用の形にする）
+const toReviewFields = (extractedFields) =>
+  (extractedFields || []).map((f, i) => ({
+    id: `f${i}`,
+    grp: f.grp || "その他",
+    label: f.label || "項目",
+    raw: f.raw || "",
+    norm: f.norm ?? f.raw ?? "",
+    unit: f.unit || "",
+    conf: ["high", "mid", "low"].includes(f.conf) ? f.conf : "mid",
+    reason: f.reason || "",
+    status: f.conf === "high" ? "confirmed" : "review",
+  }));
+
+export function Review({ extraction, onNext, onAudit }) {
+  const [fields, setFields] = useState(() => toReviewFields(extraction?.fields));
   const [filter, setFilter] = useState("全項目");
   const [selId, setSelId] = useState(null);
   const shown = useMemo(() => fields.filter((f) => {
