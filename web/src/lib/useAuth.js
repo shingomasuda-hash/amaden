@@ -1,5 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
-import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut } from "firebase/auth";
+import {
+  onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  signOut as fbSignOut, sendEmailVerification, sendPasswordResetEmail,
+} from "firebase/auth";
 import { doc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "./firebase";
 
@@ -36,6 +39,8 @@ export function useAuth() {
       await setDoc(doc(db, "profiles", cred.user.uid), {
         name, email, role: "pending", status: "有効", created_at: serverTimestamp(),
       });
+      // メールアドレスの確認メールを送信（届いたリンクを開くとFirebase側でemailVerified=trueになる）
+      try { await sendEmailVerification(cred.user); } catch { /* 確認メール送信に失敗しても登録自体は継続 */ }
       return null;
     } catch (e) {
       return e;
@@ -53,5 +58,15 @@ export function useAuth() {
 
   const signOut = useCallback(async () => { await fbSignOut(auth); }, []);
 
-  return { user, profile, loading, session: user, signUp, signIn, signOut };
+  // パスワード再発行メール（Firebase標準機能）
+  const resetPassword = useCallback(async (email) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      return null;
+    } catch (e) {
+      return e;
+    }
+  }, []);
+
+  return { user, profile, loading, session: user, signUp, signIn, signOut, resetPassword };
 }
