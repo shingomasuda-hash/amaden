@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { C, STATUS, CONF } from "../lib/theme";
 import {
-  Upload as UploadIcon, Cpu, FileCheck2, ClipboardList, Ruler, Eye, CheckCircle2, FileSpreadsheet, FileText,
-  ChevronLeft, ChevronRight, ZoomIn, ZoomOut, AlertTriangle, Check, X, ImageIcon, ArrowRight, Info, FolderOpen,
+  Upload as UploadIcon, Cpu, Ruler, CheckCircle2, FileSpreadsheet, FileText,
+  ChevronLeft, ChevronRight, AlertTriangle, Check, X, ImageIcon, ArrowRight, Info, FolderOpen,
   ExternalLink, Filter,
 } from "../lib/icons";
 import { Btn, Card, ConfPill, ProtoNote } from "../components/ui";
-import { FIELDS_INIT, PHRASES, MEAS, MEAS_COL_LABEL, STEPS } from "../lib/mockWorkflow";
+import { PHRASES, MEAS_COL_LABEL, STEPS } from "../lib/mockWorkflow";
 
 export function Stepper({ current, go, maxReached }) {
   const idx = STEPS.findIndex((s) => s.id === current);
@@ -155,9 +155,10 @@ export function Processing({ theCase, onDone }) {
 
 const REVIEW_FILTERS = ["要確認項目のみ", "全項目", "基本情報", "本体仕様", "作業内容", "測定値", "不具合・処置", "固定子コイル巻替"];
 export function Review({ onNext, onAudit }) {
-  const [fields, setFields] = useState(() => FIELDS_INIT.map((f) => ({ ...f })));
+  // OCRは未接続のため、案件ごとに前回のダミーデータが残らないよう空の状態から始める
+  const [fields, setFields] = useState([]);
   const [filter, setFilter] = useState("全項目");
-  const [selId, setSelId] = useState("f10");
+  const [selId, setSelId] = useState(null);
   const shown = useMemo(() => fields.filter((f) => {
     if (filter === "全項目") return true;
     if (filter === "要確認項目のみ") return f.status === "review";
@@ -266,7 +267,17 @@ export function Review({ onNext, onAudit }) {
                 </div>
               );
             })}
-            {shown.length === 0 && <div className="text-center text-sm py-8" style={{ color: C.sub }}>該当する項目はありません</div>}
+            {shown.length === 0 && (
+              <div className="text-center text-sm py-12" style={{ color: C.sub }}>
+                {fields.length === 0 ? (
+                  <>
+                    <AlertTriangle size={28} className="mx-auto mb-2" style={{ opacity: 0.4 }} />
+                    <div>読み取り結果はまだありません。</div>
+                    <div className="text-xs mt-1">OCRはまだ本番実装に接続されていないため、項目はここには自動で表示されません。</div>
+                  </>
+                ) : "該当する項目はありません"}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -277,7 +288,8 @@ export function Review({ onNext, onAudit }) {
 
 export function WorkContent({ onNext, onAudit }) {
   const [phraseSel, setPhraseSel] = useState({});
-  const defects = FIELDS_INIT.filter((f) => f.defect);
+  // OCRは未接続のため、案件ごとに前回のダミーの不具合内容が残らないよう空から始める
+  const defects = [];
   const set = (id, patch) => setPhraseSel((s) => ({ ...s, [id]: { ...s[id], ...patch } }));
   return (
     <div className="mx-auto px-8 py-5" style={{ maxWidth: 1120 }}>
@@ -290,6 +302,15 @@ export function WorkContent({ onNext, onAudit }) {
         AIは技術的な文章を新規に作成しません。手書き原文に対し、<b className="mx-1">リスト報告書に登録済みの定型文</b>から候補を提示します。
       </div>
       <div className="space-y-4">
+        {defects.length === 0 && (
+          <Card>
+            <div className="text-center text-sm py-8" style={{ color: C.sub }}>
+              <AlertTriangle size={28} className="mx-auto mb-2" style={{ opacity: 0.4 }} />
+              <div>不具合・処置の抽出結果はまだありません。</div>
+              <div className="text-xs mt-1">OCRはまだ本番実装に接続されていないため、項目はここには自動で表示されません。</div>
+            </div>
+          </Card>
+        )}
         {defects.map((f) => {
           const p = PHRASES[f.id];
           const cur = phraseSel[f.id] || { mode: "dict", symptom: p.symptomPick, treat: p.treatPick, custom: "" };
@@ -355,14 +376,25 @@ export function WorkContent({ onNext, onAudit }) {
 export function Measurements({ onNext, onAudit }) {
   const [measSel, setMeasSel] = useState({});
   const flagStyle = (flag) => (flag === "low" ? { backgroundColor: "#fef2f2" } : flag === "mid" ? { backgroundColor: "#fffaf0" } : {});
+  // OCRは未接続のため、案件ごとに前回のダミー測定値が残らないよう空から始める
+  const meas = [];
   return (
     <div className="mx-auto px-8 py-5" style={{ maxWidth: 1440 }}>
       <div className="flex items-center justify-between mb-3">
         <h1 className="text-lg font-semibold" style={{ color: C.ink }}>測定値の確認</h1>
         <Btn variant="primary" icon={ArrowRight} onClick={onNext}>提出プレビューへ</Btn>
       </div>
+      {meas.length === 0 && (
+        <Card>
+          <div className="text-center text-sm py-8" style={{ color: C.sub }}>
+            <AlertTriangle size={28} className="mx-auto mb-2" style={{ opacity: 0.4 }} />
+            <div>測定値の抽出結果はまだありません。</div>
+            <div className="text-xs mt-1">OCRはまだ本番実装に接続されていないため、項目はここには自動で表示されません。</div>
+          </div>
+        </Card>
+      )}
       <div className="grid grid-cols-2 gap-4">
-        {MEAS.map((tbl) => (
+        {meas.map((tbl) => (
           <Card key={tbl.key} pad={false}>
             <div className="px-4 py-2.5 border-b flex items-center gap-2" style={{ borderColor: C.line, backgroundColor: C.panel }}>
               <Ruler size={14} style={{ color: C.navy }} /><span className="text-sm font-semibold" style={{ color: C.ink }}>{tbl.title}</span>
@@ -409,9 +441,11 @@ export function Measurements({ onNext, onAudit }) {
 }
 
 export function Preview({ theCase, onNext, onAudit }) {
+  // OCRは未接続のため、案件の実データ（顧客名・管理番号・担当者）以外は
+  // 前回のダミー値を出さず空欄から始める。値は下の欄で自由に入力できます。
   const [previewData, setPreviewData] = useState({
-    customer: theCase?.customer || "近畿テクノ㈱エレベータ", completeDate: "2026 年 3 月 17 日", ctrl: theCase?.ctrl || "1020", owner: theCase?.owner || "",
-    output: "55 kW", voltage: "220/440 V", pole: "4 P", note1: "ローター軸(D)ベアリング部 摩耗　→　溶射加工にて補修", note2: "固定子コイル 絶縁劣化　→　コイル巻替作業の実施",
+    customer: theCase?.customer || "", completeDate: "", ctrl: theCase?.ctrl || "", owner: theCase?.owner || "",
+    output: "", voltage: "", pole: "", note1: "", note2: "",
   });
   const focusValues = useRef({});
   const rows = [{ id: "customer", label: "顧客名" }, { id: "completeDate", label: "作業完了日" }, { id: "ctrl", label: "管理No" }, { id: "owner", label: "担当者" },
