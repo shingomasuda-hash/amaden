@@ -6,10 +6,14 @@ import { ShieldCheck, Users, MessageSquare, History, LayoutDashboard, FileText, 
 import { Btn, Card, ProtoNote } from "../components/ui";
 import { logActivity } from "../lib/useData";
 
+const JPY_PER_USD = 155; // 概算レート。web/api/extract.js の usdToJpyEstimate と合わせている
+
 export function AdminPanel({ profiles, cases, threadCounts, currentUser, onBack, onOpenChat, onCopyLink, onToggleLink, logs, toast }) {
   const [tab, setTab] = useState("accounts");
   const [logUser, setLogUser] = useState("全員");
   const [logAction, setLogAction] = useState("全操作");
+  const totalAiCostUsd = useMemo(() => cases.reduce((sum, c) => sum + (c.aiCostUsd || 0), 0), [cases]);
+  const totalAiCostCount = useMemo(() => cases.reduce((sum, c) => sum + (c.aiCostCount || 0), 0), [cases]);
 
   const updateProfile = async (p, patch) => {
     const key = Object.keys(patch)[0];
@@ -92,16 +96,20 @@ export function AdminPanel({ profiles, cases, threadCounts, currentUser, onBack,
 
       {tab === "chats" && (
         <Card pad={false}>
-          <div className="px-5 py-3 border-b" style={{ borderColor: C.line }}>
+          <div className="px-5 py-3 border-b flex items-center justify-between flex-wrap gap-2" style={{ borderColor: C.line }}>
             <div className="text-sm font-semibold" style={{ color: C.ink }}>案件ごとの先方とのやり取り</div>
+            <div className="text-xs" style={{ color: C.sub }}>
+              AI読み取り 合計 <span className="font-mono font-medium" style={{ color: C.navy }}>${totalAiCostUsd.toFixed(4)}</span>（約¥{Math.ceil(totalAiCostUsd * JPY_PER_USD)}）・{totalAiCostCount}回
+            </div>
           </div>
           <table className="w-full text-sm">
             <thead><tr className="text-left" style={{ color: C.sub, backgroundColor: C.panel }}>
-              {["管理番号", "顧客名", "担当者", "件数", "AI操作", "リンク", "操作"].map((h) => <th key={h} className="px-5 py-2.5 font-medium text-xs">{h}</th>)}
+              {["管理番号", "顧客名", "担当者", "件数", "AI操作", "AI読み取りコスト（概算）", "リンク", "操作"].map((h) => <th key={h} className="px-5 py-2.5 font-medium text-xs">{h}</th>)}
             </tr></thead>
             <tbody>
               {cases.map((c) => {
                 const linkEnabled = c.linkEnabled !== false;
+                const costUsd = c.aiCostUsd || 0;
                 return (
                   <tr key={c.ctrl} className="border-t" style={{ borderColor: C.line }}>
                     <td className="px-5 py-3 font-mono text-[13px]" style={{ color: C.navy }}>{c.ctrl}</td>
@@ -112,6 +120,9 @@ export function AdminPanel({ profiles, cases, threadCounts, currentUser, onBack,
                       <span className="text-[11px] px-1.5 py-0.5 rounded" style={c.aiEnabled ? { color: "#1e7d45", backgroundColor: "#e4efe6" } : { color: C.sub, backgroundColor: C.panel }}>
                         {c.aiEnabled ? "許可中" : "無効"}
                       </span>
+                    </td>
+                    <td className="px-5 py-3 text-xs font-mono" style={{ color: costUsd > 0 ? C.ink : C.sub }}>
+                      {costUsd > 0 ? `$${costUsd.toFixed(4)}（約¥${Math.ceil(costUsd * JPY_PER_USD)}）・${c.aiCostCount || 0}回` : "—"}
                     </td>
                     <td className="px-5 py-3">
                       <button onClick={() => onToggleLink(c)} className="text-[11px] px-1.5 py-0.5 rounded" style={linkEnabled ? { color: "#1e7d45", backgroundColor: "#e4efe6" } : { color: "#b91c1c", backgroundColor: "#fee2e2" }}>
@@ -127,6 +138,9 @@ export function AdminPanel({ profiles, cases, threadCounts, currentUser, onBack,
               })}
             </tbody>
           </table>
+          <div className="px-5 py-3 text-[11px]" style={{ color: C.sub }}>
+            コストは概算です（Claude APIの参考単価から算出）。正確な請求額は console.anthropic.com の使用状況をご確認ください。
+          </div>
         </Card>
       )}
 

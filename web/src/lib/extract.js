@@ -35,5 +35,7 @@ export async function extractCase(file, { customer, ctrl } = {}) {
   if (!res.ok) {
     throw new Error(body?.error || `読み取りに失敗しました（${res.status}）`);
   }
-  return body.result; // { fields: [...], defects: [...], measurements: [...] }
+  // result: { fields: [...], defects: [...], measurements: [...] }
+  // cost: { usd, jpyEstimate, inputTok, outputTok }（概算）
+  return { result: body.result, cost: body.cost, model: body.model };
 }

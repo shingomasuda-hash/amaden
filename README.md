@@ -10,6 +10,7 @@ Vite + React + **Firebase**（認証・Firestore・リアルタイム同期）+ 
 - 社内・先方でリアルタイムに同期する案件データ・チャット（他の端末にも即座に反映）
 - 先方ポータルはログイン不要のトークンリンクのまま、Firestoreセキュリティルールで安全にアクセス制御
 - 「誰がどこを触ったか」の変更履歴を記録
+- 手書きPDFの読み取りは **Claude（Anthropic API）** による本物のAI読み取り（Vercel Serverless Function）。読み取りコスト（概算）を案件ごとに記録
 
 セットアップ手順は **[`web/README.md`](web/README.md)** を参照してください。セキュリティルールは [`firebase/firestore.rules`](firebase/firestore.rules) にあります。
 
@@ -44,5 +45,5 @@ npm run build
 
 ## 共通：まだ本物ではない機能
 
-- OCR・Excel出力・PDF生成・フォルダ保存は未接続のモックです（`web/` 版でも同様）。
+- Excel出力・PDF生成・フォルダ保存は未接続のモックです（`web/` 版でも同様）。手書きPDFの読み取り（OCR）は `web/` 版のみ、Claude（Anthropic API）による本物の実装です（`ANTHROPIC_API_KEY` 未設定の場合はエラーになります。詳細は [`web/README.md`](web/README.md)）。`src/app.html` のプロトタイプ版ではOCRも引き続きモックのままです。
 - 先方ポータルの「AIエージェントでの操作について」パネルは、案件ごとに管理側で許可した場合のみ表示され、ブラウザで動くAIアシスタントがページ構造から操作対象を認識しやすいよう、操作候補をリスト表示しているだけです。AIが実際にサイトの中身を書き換える機能ではありません。

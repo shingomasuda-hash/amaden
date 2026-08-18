@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   collection, doc, onSnapshot, query, orderBy, limit, addDoc, setDoc, updateDoc,
-  serverTimestamp, getDoc,
+  serverTimestamp, getDoc, increment,
 } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -101,6 +101,7 @@ export async function createCase({ ctrl, customer, kind, rewind, spec, owner }) 
   const caseDoc = {
     customer, kind, rewind, spec: spec || "", status: "review", owner: owner || "",
     aiEnabled: false, linkToken: token, linkEnabled: true,
+    aiCostUsd: 0, aiCostCount: 0,
     caseDate: new Date().toISOString().slice(0, 10),
     created_at: serverTimestamp(), updated_at: serverTimestamp(),
   };
@@ -123,6 +124,18 @@ export async function toggleCaseLink(theCase) {
   await updateDoc(doc(db, "cases", theCase.ctrl), { linkEnabled: !wasEnabled });
   if (theCase.linkToken) await updateDoc(doc(db, "caseLinks", theCase.linkToken), { enabled: !wasEnabled });
   return !wasEnabled;
+}
+
+/* AI読み取り（Claude API）1回分のコストを、案件の累計とあわせて記録する。
+   cost: { usd, jpyEstimate, inputTok, outputTok }（サーバー側の概算値） */
+export async function logAiCost(theCase, actorName, cost) {
+  if (!theCase?.ctrl || !cost) return;
+  const usdText = `$${cost.usd.toFixed(4)}（約¥${Math.ceil(cost.jpyEstimate)}）`;
+  await updateDoc(doc(db, "cases", theCase.ctrl), {
+    aiCostUsd: increment(cost.usd), aiCostCount: increment(1), updated_at: serverTimestamp(),
+  });
+  await logActivity(actorName, "AI読み取りコスト（概算）", theCase.ctrl, "—", usdText);
+  await pushSystemNote(theCase, `AI読み取りを実行しました（概算コスト ${usdText}）`);
 }
 
 /* 先方ポータル：トークンから案件情報を取得（未ログインで呼ばれる） */

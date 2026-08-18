@@ -6,7 +6,7 @@ import {
   ExternalLink, Filter,
 } from "../lib/icons";
 import { Btn, Card, ConfPill, ProtoNote } from "../components/ui";
-import { PHRASES, MEAS_COL_LABEL, STEPS } from "../lib/mockWorkflow";
+import { STEPS } from "../lib/mockWorkflow";
 
 export function Stepper({ current, go, maxReached }) {
   const idx = STEPS.findIndex((s) => s.id === current);
@@ -123,13 +123,44 @@ export function UploadScreen({ theCase, owners, onStart, onAudit }) {
 }
 
 const PROC_STEPS = ["PDF読み込み", "ページ分類", "基本情報抽出", "本体仕様抽出", "作業内容抽出", "測定値抽出", "訂正箇所検出", "提出用項目への変換"];
-export function Processing({ theCase, onDone }) {
+// status: "loading"（実際のAPI応答待ち） | "done" | "error"
+export function Processing({ theCase, status, error, onDone, onBack }) {
   const [step, setStep] = useState(0);
+  const holdAt = PROC_STEPS.length - 1;
+
   useEffect(() => {
-    if (step >= PROC_STEPS.length) { const t = setTimeout(onDone, 700); return () => clearTimeout(t); }
-    const t = setTimeout(() => setStep((s) => s + 1), 500);
+    if (status !== "loading") return;
+    if (step >= holdAt) return; // 実際のレスポンスが来るまでここで待つ
+    const t = setTimeout(() => setStep((s) => s + 1), 450);
     return () => clearTimeout(t);
-  }, [step, onDone]);
+  }, [step, status, holdAt]);
+
+  useEffect(() => {
+    if (status !== "done") return;
+    setStep(PROC_STEPS.length);
+    const t = setTimeout(onDone, 500);
+    return () => clearTimeout(t);
+  }, [status, onDone]);
+
+  if (status === "error") {
+    return (
+      <div className="mx-auto px-8 py-10" style={{ maxWidth: 820 }}>
+        <Card>
+          <div className="text-center py-4">
+            <div className="w-12 h-12 rounded-full mx-auto flex items-center justify-center mb-3" style={{ backgroundColor: "#fee2e2" }}>
+              <AlertTriangle size={24} style={{ color: "#dc2626" }} />
+            </div>
+            <div className="text-base font-semibold" style={{ color: C.ink }}>読み取りに失敗しました</div>
+            <div className="text-xs mt-2 max-w-md mx-auto" style={{ color: C.sub }}>{error || "不明なエラーが発生しました。"}</div>
+          </div>
+          <div className="flex justify-center mt-4">
+            <Btn variant="outline" icon={ChevronLeft} onClick={onBack}>アップロード画面に戻る</Btn>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   const pct = Math.round((Math.min(step, PROC_STEPS.length) / PROC_STEPS.length) * 100);
   return (
     <div className="mx-auto px-8 py-10" style={{ maxWidth: 820 }}>
@@ -162,7 +193,7 @@ export function Processing({ theCase, onDone }) {
             );
           })}
         </div>
-        <div className="mt-4"><ProtoNote /></div>
+        <div className="mt-4"><ProtoNote>PDFのページ数や混み具合により、実際の読み取りには数十秒かかることがあります。</ProtoNote></div>
       </Card>
     </div>
   );
@@ -314,148 +345,148 @@ export function Review({ extraction, onNext, onAudit }) {
   );
 }
 
-export function WorkContent({ onNext, onAudit }) {
-  const [phraseSel, setPhraseSel] = useState({});
-  // OCRは未接続のため、案件ごとに前回のダミーの不具合内容が残らないよう空から始める
-  const defects = [];
-  const set = (id, patch) => setPhraseSel((s) => ({ ...s, [id]: { ...s[id], ...patch } }));
+// Claudeの読み取り結果（不具合・処置）を画面用の形にする。noteは特記事項欄への転記文面（編集可・初期値は原文）
+const toDefectRows = (defects) =>
+  (defects || []).map((d, i) => ({ id: `d${i}`, label: d.label || "不具合", raw: d.raw || "", note: d.raw || "" }));
+
+export function WorkContent({ defects, onNext, onAudit }) {
+  const [rows, setRows] = useState(() => toDefectRows(defects));
+  const focusValues = useRef({});
+  const setNote = (id, v) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, note: v } : r)));
+  const onFocus = (id) => { focusValues.current[id] = rows.find((r) => r.id === id)?.note ?? ""; };
+  const onBlur = (id, label) => {
+    const before = focusValues.current[id];
+    const after = rows.find((r) => r.id === id)?.note ?? "";
+    if (before !== undefined && before !== after) onAudit?.("特記事項を編集", label, before, after);
+  };
   return (
     <div className="mx-auto px-8 py-5" style={{ maxWidth: 1120 }}>
       <div className="flex items-center justify-between mb-2">
-        <h1 className="text-lg font-semibold" style={{ color: C.ink }}>作業内容・定型文の選択</h1>
+        <h1 className="text-lg font-semibold" style={{ color: C.ink }}>作業内容・特記事項の確認</h1>
         <Btn variant="primary" icon={ArrowRight} onClick={onNext}>測定値の確認へ</Btn>
       </div>
       <div className="flex items-start gap-1.5 text-xs mb-4 rounded px-3 py-2" style={{ color: "#475569", backgroundColor: C.panel }}>
         <Info size={13} className="mt-0.5" />
-        AIは技術的な文章を新規に作成しません。手書き原文に対し、<b className="mx-1">リスト報告書に登録済みの定型文</b>から候補を提示します。
+        AIが読み取った手書き原文をもとに、報告書の特記事項に転記する文面をここで確認・修正してください。
       </div>
       <div className="space-y-4">
-        {defects.length === 0 && (
+        {rows.length === 0 && (
           <Card>
             <div className="text-center text-sm py-8" style={{ color: C.sub }}>
               <AlertTriangle size={28} className="mx-auto mb-2" style={{ opacity: 0.4 }} />
               <div>不具合・処置の抽出結果はまだありません。</div>
-              <div className="text-xs mt-1">OCRはまだ本番実装に接続されていないため、項目はここには自動で表示されません。</div>
+              <div className="text-xs mt-1">PDFをアップロードしてAI読み取りを行うと、ここに表示されます。</div>
             </div>
           </Card>
         )}
-        {defects.map((f) => {
-          const p = PHRASES[f.id];
-          const cur = phraseSel[f.id] || { mode: "dict", symptom: p.symptomPick, treat: p.treatPick, custom: "" };
-          return (
-            <Card key={f.id}>
-              <div className="grid gap-5" style={{ gridTemplateColumns: "minmax(0,4fr) minmax(0,6fr)" }}>
-                <div>
-                  <div className="text-xs mb-1" style={{ color: C.sub }}>手書き原文</div>
-                  <div className="rounded border px-3 py-2.5 text-[15px] mb-3" style={{ borderColor: C.line2, color: "#1e40af", fontStyle: "italic", backgroundColor: "#fafbfc" }}>{f.raw}</div>
-                  <div className="text-xs mb-1" style={{ color: C.sub }}>作業内容のチェック結果</div>
-                  <div className="text-sm mb-3" style={{ color: C.ink }}>{p.check}</div>
-                </div>
-                <div className="border-l pl-5" style={{ borderColor: C.line }}>
-                  <div className="flex items-center gap-4 mb-3">
-                    <label className="flex items-center gap-1.5 text-sm cursor-pointer" style={{ color: C.ink }}>
-                      <input type="radio" checked={cur.mode === "dict"} onChange={() => set(f.id, { mode: "dict" })} />リスト報告書の定型文を使用
-                    </label>
-                    <label className="flex items-center gap-1.5 text-sm cursor-pointer" style={{ color: C.ink }}>
-                      <input type="radio" checked={cur.mode === "raw"} onChange={() => set(f.id, { mode: "raw" })} />原文を使用
-                    </label>
-                  </div>
-                  {cur.mode === "dict" ? (
-                    <div className="space-y-3">
-                      <div>
-                        <div className="text-xs mb-1" style={{ color: C.sub }}>症状・箇所（候補）</div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {p.symptomCands.map((s) => (
-                            <button key={s} onClick={() => set(f.id, { symptom: s })} className="text-xs px-2.5 py-1.5 rounded border text-left"
-                              style={cur.symptom === s ? { borderColor: C.navy, backgroundColor: "#eef2f7", color: C.navy } : { borderColor: C.line2, color: C.ink }}>{s}</button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs mb-1" style={{ color: C.sub }}>処置内容（候補）</div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {p.treatCands.map((s) => (
-                            <button key={s} onClick={() => set(f.id, { treat: s })} className="text-xs px-2.5 py-1.5 rounded border text-left"
-                              style={cur.treat === s ? { borderColor: C.navy, backgroundColor: "#eef2f7", color: C.navy } : { borderColor: C.line2, color: C.ink }}>{s}</button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-sm rounded border px-3 py-2" style={{ borderColor: C.line2, color: C.ink, backgroundColor: "#fafbfc" }}>{f.raw}</div>
-                  )}
-                  <div className="mt-3 flex items-center justify-between">
-                    <div className="text-xs rounded px-2 py-1" style={{ color: C.navy, backgroundColor: C.panel2 }}>
-                      特記事項へ転記：<b>{cur.custom || (cur.mode === "raw" ? f.raw : `${cur.symptom} → ${cur.treat}`)}</b>
-                    </div>
-                    <Btn size="sm" variant="ok" icon={Check} onClick={() => onAudit?.("特記事項確定", f.label, f.raw, cur.custom || (cur.mode === "raw" ? f.raw : `${cur.symptom} → ${cur.treat}`))}>この内容で確定</Btn>
-                  </div>
+        {rows.map((r) => (
+          <Card key={r.id}>
+            <div className="grid gap-5" style={{ gridTemplateColumns: "minmax(0,4fr) minmax(0,6fr)" }}>
+              <div>
+                <div className="text-xs mb-1" style={{ color: C.sub }}>{r.label}</div>
+                <div className="text-xs mb-1" style={{ color: C.sub }}>手書き原文</div>
+                <div className="rounded border px-3 py-2.5 text-[15px]" style={{ borderColor: C.line2, color: "#1e40af", fontStyle: "italic", backgroundColor: "#fafbfc" }}>{r.raw || "—"}</div>
+              </div>
+              <div className="border-l pl-5" style={{ borderColor: C.line }}>
+                <div className="text-xs mb-1" style={{ color: C.sub }}>特記事項へ転記する内容（修正可）</div>
+                <textarea value={r.note} rows={3} onChange={(e) => setNote(r.id, e.target.value)}
+                  onFocus={() => onFocus(r.id)} onBlur={() => onBlur(r.id, r.label)}
+                  className="w-full text-sm rounded border px-3 py-2" style={{ borderColor: C.line2, color: C.ink }} />
+                <div className="mt-3 flex justify-end">
+                  <Btn size="sm" variant="ok" icon={Check} onClick={() => onAudit?.("特記事項確定", r.label, r.raw, r.note)}>この内容で確定</Btn>
                 </div>
               </div>
-            </Card>
-          );
-        })}
+            </div>
+          </Card>
+        ))}
       </div>
       <div className="mt-4"><ProtoNote /></div>
     </div>
   );
 }
 
-export function Measurements({ onNext, onAudit }) {
-  const [measSel, setMeasSel] = useState({});
-  const flagStyle = (flag) => (flag === "low" ? { backgroundColor: "#fef2f2" } : flag === "mid" ? { backgroundColor: "#fffaf0" } : {});
-  // OCRは未接続のため、案件ごとに前回のダミー測定値が残らないよう空から始める
-  const meas = [];
+// Claudeの読み取り結果（測定値の各行）を画面用の形にする
+const toMeasRows = (measurements) =>
+  (measurements || []).map((m, i) => ({
+    id: `m${i}`,
+    title: m.title || "測定値",
+    item: m.item || "",
+    mgmt: m.mgmt || "",
+    before: m.before || "",
+    after: m.after || "",
+    unit: m.unit || "",
+    judge: m.judge || "",
+    conf: ["high", "mid", "low"].includes(m.conf) ? m.conf : "mid",
+  }));
+
+export function Measurements({ measurements, onNext, onAudit }) {
+  const [rows, setRows] = useState(() => toMeasRows(measurements));
+  const focusValues = useRef({});
+  const setField = (id, patch) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  const onFocus = (id, key) => { focusValues.current[id + key] = rows.find((r) => r.id === id)?.[key] ?? ""; };
+  const onBlur = (id, key, label) => {
+    const before = focusValues.current[id + key];
+    const after = rows.find((r) => r.id === id)?.[key] ?? "";
+    if (before !== undefined && before !== after) onAudit?.("測定値を手修正", label, before, after);
+  };
+  const tables = useMemo(() => {
+    const map = new Map();
+    rows.forEach((r) => {
+      if (!map.has(r.title)) map.set(r.title, []);
+      map.get(r.title).push(r);
+    });
+    return Array.from(map.entries()).map(([title, rs]) => ({ title, rows: rs }));
+  }, [rows]);
+
   return (
     <div className="mx-auto px-8 py-5" style={{ maxWidth: 1440 }}>
       <div className="flex items-center justify-between mb-3">
         <h1 className="text-lg font-semibold" style={{ color: C.ink }}>測定値の確認</h1>
         <Btn variant="primary" icon={ArrowRight} onClick={onNext}>提出プレビューへ</Btn>
       </div>
-      {meas.length === 0 && (
+      {tables.length === 0 && (
         <Card>
           <div className="text-center text-sm py-8" style={{ color: C.sub }}>
             <AlertTriangle size={28} className="mx-auto mb-2" style={{ opacity: 0.4 }} />
             <div>測定値の抽出結果はまだありません。</div>
-            <div className="text-xs mt-1">OCRはまだ本番実装に接続されていないため、項目はここには自動で表示されません。</div>
+            <div className="text-xs mt-1">PDFをアップロードしてAI読み取りを行うと、ここに表示されます。</div>
           </div>
         </Card>
       )}
       <div className="grid grid-cols-2 gap-4">
-        {meas.map((tbl) => (
-          <Card key={tbl.key} pad={false}>
+        {tables.map((tbl) => (
+          <Card key={tbl.title} pad={false}>
             <div className="px-4 py-2.5 border-b flex items-center gap-2" style={{ borderColor: C.line, backgroundColor: C.panel }}>
               <Ruler size={14} style={{ color: C.navy }} /><span className="text-sm font-semibold" style={{ color: C.ink }}>{tbl.title}</span>
             </div>
             <table className="w-full text-xs">
-              <thead><tr style={{ color: C.sub }}><th className="text-left px-3 py-1.5 font-medium">項目</th>{tbl.cols.map((c) => <th key={c} className="text-right px-3 py-1.5 font-medium">{MEAS_COL_LABEL[c]}</th>)}</tr></thead>
+              <thead>
+                <tr style={{ color: C.sub }}>
+                  <th className="text-left px-3 py-1.5 font-medium">項目</th>
+                  <th className="text-right px-3 py-1.5 font-medium">管理値</th>
+                  <th className="text-right px-3 py-1.5 font-medium">整備前</th>
+                  <th className="text-right px-3 py-1.5 font-medium">整備後</th>
+                  <th className="text-right px-3 py-1.5 font-medium">判定</th>
+                  <th className="text-right px-3 py-1.5 font-medium">信頼度</th>
+                </tr>
+              </thead>
               <tbody>
-                {tbl.rows.map((r, i) => (
-                  <tr key={i} className="border-t" style={{ borderColor: C.line, ...flagStyle(r.flag) }}>
-                    <td className="px-3 py-1.5" style={{ color: C.ink }}>{r.name}</td>
-                    {tbl.cols.map((c) => {
-                      if (c === "conf") return <td key={c} className="px-3 py-1.5 text-right"><ConfPill level={r.conf} small /></td>;
-                      if (c === "judge") return <td key={c} className="px-3 py-1.5 text-right font-medium" style={{ color: (r.judge || "").includes("否") ? "#b45309" : r.judge === "良" ? "#047857" : C.ink }}>{r.judge || "—"}</td>;
-                      if (c === "treat") return <td key={c} className="px-3 py-1.5 text-right" style={{ color: C.navy }}>{r.treat || "—"}</td>;
-                      const v = r[c];
-                      return <td key={c} className="px-3 py-1.5 text-right font-mono" style={{ color: v == null ? "#cbd5e1" : C.ink }}>{v == null ? "—" : v}</td>;
-                    })}
-                  </tr>
-                ))}
-                {tbl.rows.filter((r) => r.cands).map((r, i) => (
-                  <tr key={"c" + i} className="border-t" style={{ borderColor: C.line, backgroundColor: "#fef2f2" }}>
-                    <td colSpan={tbl.cols.length + 1} className="px-3 py-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <AlertTriangle size={12} style={{ color: "#b91c1c" }} />
-                        <span style={{ color: "#b91c1c" }}>{r.name}：{r.reason}</span>
-                        <span style={{ color: C.sub }}>候補</span>
-                        {r.cands.map((cd) => (
-                          <button key={cd} onClick={() => { setMeasSel((s) => ({ ...s, [tbl.key + r.name]: cd })); onAudit?.("測定値候補選択", `${tbl.title} / ${r.name}`, r.reason, cd); }}
-                            className="px-2 py-0.5 rounded border font-mono"
-                            style={measSel[tbl.key + r.name] === cd ? { borderColor: C.navy, backgroundColor: "#eef2f7", color: C.navy } : { borderColor: C.line2, color: C.ink }}>{cd} {r.unit}</button>
-                        ))}
-                      </div>
+                {tbl.rows.map((r) => (
+                  <tr key={r.id} className="border-t" style={{ borderColor: C.line, backgroundColor: r.conf === "low" ? "#fef2f2" : r.conf === "mid" ? "#fffaf0" : "transparent" }}>
+                    <td className="px-3 py-1.5" style={{ color: C.ink }}>{r.item}{r.unit ? `（${r.unit}）` : ""}</td>
+                    <td className="px-3 py-1.5 text-right font-mono" style={{ color: r.mgmt ? C.ink : "#cbd5e1" }}>{r.mgmt || "—"}</td>
+                    <td className="px-3 py-1.5 text-right">
+                      <input value={r.before} onChange={(e) => setField(r.id, { before: e.target.value })}
+                        onFocus={() => onFocus(r.id, "before")} onBlur={() => onBlur(r.id, "before", `${tbl.title} / ${r.item}`)}
+                        className="w-16 text-right font-mono bg-transparent outline-none" style={{ color: C.ink }} />
                     </td>
+                    <td className="px-3 py-1.5 text-right">
+                      <input value={r.after} onChange={(e) => setField(r.id, { after: e.target.value })}
+                        onFocus={() => onFocus(r.id, "after")} onBlur={() => onBlur(r.id, "after", `${tbl.title} / ${r.item}`)}
+                        className="w-16 text-right font-mono bg-transparent outline-none" style={{ color: C.ink }} />
+                    </td>
+                    <td className="px-3 py-1.5 text-right font-medium" style={{ color: (r.judge || "").includes("否") ? "#b45309" : r.judge === "良" ? "#047857" : C.ink }}>{r.judge || "—"}</td>
+                    <td className="px-3 py-1.5 text-right"><ConfPill level={r.conf} small /></td>
                   </tr>
                 ))}
               </tbody>

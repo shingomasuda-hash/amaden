@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { firebaseReady } from "./lib/firebase";
 import { useAuth } from "./lib/useAuth";
-import { useCases, useProfiles, useAuditLogs, useThreadCounts, logActivity, pushSystemNote, createCase, toggleCaseLink } from "./lib/useData";
+import { useCases, useProfiles, useAuditLogs, useThreadCounts, logActivity, pushSystemNote, createCase, toggleCaseLink, logAiCost } from "./lib/useData";
+import { extractCase } from "./lib/extract";
 import { C } from "./lib/theme";
 import { FileSpreadsheet, ShieldCheck, LogOut, Info, LayoutDashboard, ChevronLeft } from "./lib/icons";
 import { Btn, Toast } from "./components/ui";
@@ -58,6 +59,12 @@ function StaffApp() {
   const [toastMsg, setToastMsg] = useState(null);
   const toast = (m) => setToastMsg(m);
 
+  // AI読み取り（Claude API）の状態。案件をまたいで残らないよう、案件を切り替える際にリセットする。
+  const [extraction, setExtraction] = useState(null); // { fields, defects, measurements }
+  const [extractStatus, setExtractStatus] = useState("idle"); // idle | loading | done | error
+  const [extractError, setExtractError] = useState("");
+  const resetExtraction = () => { setExtraction(null); setExtractStatus("idle"); setExtractError(""); };
+
   // 画面遷移は必ずこれを通す（forward）。前の画面をスタックに積んでおくことで「戻る」ができる。
   const navigate = (next) => {
     setScreenHistory((h) => [...h, screen]);
@@ -92,6 +99,7 @@ function StaffApp() {
 
   const openCase = (c, at) => {
     setActiveCase(c);
+    resetExtraction();
     navigate(at);
     logActivity(currentUser.name, "案件を開いた", c.ctrl, "—", STEPS.find((s) => s.id === at)?.name || at);
     pushSystemNote(c, `${currentUser.name} が案件を開きました（${STEPS.find((s) => s.id === at)?.name || at}）。`);
@@ -103,6 +111,7 @@ function StaffApp() {
       const created = await createCase({ ctrl, customer: "新規案件（顧客名未設定）", kind: "交流", rewind: false, spec: "", owner: currentUser.name });
       await logActivity(currentUser.name, "案件登録", ctrl, "—", created.customer);
       setActiveCase(created);
+      resetExtraction();
       navigate("upload");
     } catch {
       toast("案件の作成に失敗しました");
@@ -110,7 +119,27 @@ function StaffApp() {
   };
 
   const openChat = (c) => { setActiveCase(c); navigate("casechat"); };
-  const goHome = () => { setScreenRaw("dashboard"); setActiveCase(null); setScreenHistory([]); };
+  const goHome = () => { setScreenRaw("dashboard"); setActiveCase(null); setScreenHistory([]); resetExtraction(); };
+
+  // アップロードされたPDFをAI(Claude)に読み取らせる。結果は各確認画面(Review/WorkContent/Measurements)へ渡す。
+  const startExtraction = async (file) => {
+    if (!activeCase) return;
+    setExtraction(null);
+    setExtractError("");
+    setExtractStatus("loading");
+    navigate("processing");
+    try {
+      const { result, cost } = await extractCase(file, { customer: activeCase.customer, ctrl: activeCase.ctrl });
+      setExtraction(result);
+      setExtractStatus("done");
+      if (cost) logAiCost(activeCase, currentUser.name, cost).catch(() => {});
+    } catch (e) {
+      setExtractError(e?.message || "読み取りに失敗しました");
+      setExtractStatus("error");
+    }
+  };
+
+  const backToUpload = () => { resetExtraction(); goBack(); };
 
   const copyLink = async (c) => {
     if (!c.linkToken) { toast("先方用リンクがまだ発行されていません"); return; }
@@ -145,7 +174,7 @@ function StaffApp() {
           </button>
           <div className="flex items-center gap-4">
             <div className="hidden lg:flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded" style={{ color: "#ffe3b0", backgroundColor: "rgba(255,255,255,.08)" }}>
-              <Info size={11} /> OCR・Excel・PDF・保存は未接続のモックです
+              <Info size={11} /> Excel・PDF・フォルダ保存は未接続のモックです（PDFの読み取りはAI連携済み）
             </div>
             {isAdmin && <Btn size="sm" variant="outline" icon={ShieldCheck} onClick={() => navigate("admin")}>管理者</Btn>}
             <div className="flex items-center gap-2 text-white text-xs">
@@ -184,11 +213,11 @@ function StaffApp() {
         {screen === "casechat" && (
           <CaseChatScreen theCase={activeCaseLive} currentUser={currentUser} onCopyLink={copyLink} onToggleLink={handleToggleLink} onBack={goHome} />
         )}
-        {screen === "upload" && <UploadScreen theCase={activeCaseLive} owners={profiles.filter((p) => p.role !== "pending").map((p) => p.name)} onStart={() => navigate("processing")} onAudit={onAudit} />}
-        {screen === "processing" && <Processing theCase={activeCaseLive} onDone={() => navigate("review")} />}
-        {screen === "review" && <Review onNext={() => navigate("work")} onAudit={onAudit} />}
-        {screen === "work" && <WorkContent onNext={() => navigate("meas")} onAudit={onAudit} />}
-        {screen === "meas" && <Measurements onNext={() => navigate("preview")} onAudit={onAudit} />}
+        {screen === "upload" && <UploadScreen theCase={activeCaseLive} owners={profiles.filter((p) => p.role !== "pending").map((p) => p.name)} onStart={startExtraction} onAudit={onAudit} />}
+        {screen === "processing" && <Processing theCase={activeCaseLive} status={extractStatus} error={extractError} onDone={() => navigate("review")} onBack={backToUpload} />}
+        {screen === "review" && <Review extraction={extraction} onNext={() => navigate("work")} onAudit={onAudit} />}
+        {screen === "work" && <WorkContent defects={extraction?.defects} onNext={() => navigate("meas")} onAudit={onAudit} />}
+        {screen === "meas" && <Measurements measurements={extraction?.measurements} onNext={() => navigate("preview")} onAudit={onAudit} />}
         {screen === "preview" && <Preview theCase={activeCaseLive} onNext={() => navigate("done")} onAudit={onAudit} />}
         {screen === "done" && <Done theCase={activeCaseLive} onHome={goHome} />}
       </main>

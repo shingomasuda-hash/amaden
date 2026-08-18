@@ -9,6 +9,18 @@ export const config = {
 
 const MODEL = "claude-sonnet-5";
 
+// 参考価格（USD / 100万トークン）。実際の請求額と若干ズレる可能性があるため、
+// 正確な金額は https://www.anthropic.com/pricing または console.anthropic.com の使用状況を参照してください。
+const PRICE_PER_MTOK_USD = { input: 3, output: 15 };
+const usdToJpyEstimate = (usd) => usd * 155; // 概算レート。正確な換算ではありません。
+
+const estimateCost = (usage) => {
+  const inputTok = (usage?.input_tokens || 0) + (usage?.cache_creation_input_tokens || 0) + (usage?.cache_read_input_tokens || 0);
+  const outputTok = usage?.output_tokens || 0;
+  const usd = (inputTok / 1_000_000) * PRICE_PER_MTOK_USD.input + (outputTok / 1_000_000) * PRICE_PER_MTOK_USD.output;
+  return { usd, jpyEstimate: usdToJpyEstimate(usd), inputTok, outputTok };
+};
+
 const EXTRACT_TOOL = {
   name: "submit_extraction",
   description: "分解整備成績書（手書きPDF）から読み取った内容を構造化して提出する",
@@ -104,7 +116,8 @@ export default async function handler(req, res) {
 
     const toolUse = msg.content.find((b) => b.type === "tool_use");
     if (!toolUse) { res.status(502).json({ error: "モデルが構造化データを返しませんでした。もう一度お試しください。" }); return; }
-    res.status(200).json({ result: toolUse.input });
+    const cost = estimateCost(msg.usage);
+    res.status(200).json({ result: toolUse.input, cost, model: MODEL });
   } catch (e) {
     res.status(500).json({ error: e?.message || "読み取りに失敗しました" });
   }
