@@ -5,13 +5,14 @@ import Anthropic from "@anthropic-ai/sdk";
 
 export const config = {
   api: { bodyParser: { sizeLimit: "10mb" } },
+  maxDuration: 60, // 測定値の多い帳票はAIの出力量が多く、生成に時間がかかるため長めに確保
 };
 
 const MODEL = "claude-sonnet-5";
 
-// 参考価格（USD / 100万トークン）。実際の請求額と若干ズレる可能性があるため、
+// 参考価格（USD / 100万トークン、claude-sonnet-5）。実際の請求額と若干ズレる可能性があるため、
 // 正確な金額は https://www.anthropic.com/pricing または console.anthropic.com の使用状況を参照してください。
-const PRICE_PER_MTOK_USD = { input: 3, output: 15 };
+const PRICE_PER_MTOK_USD = { input: 2, output: 10 };
 const usdToJpyEstimate = (usd) => usd * 155; // 概算レート。正確な換算ではありません。
 
 const estimateCost = (usage) => {
@@ -58,7 +59,7 @@ const EXTRACT_TOOL = {
       },
       measurements: {
         type: "array",
-        description: "測定値の各行。巻線抵抗値・絶縁抵抗値・軸ブレ・シャフト寸法・ブラケット寸法・回転試験・温度試験・振動試験などを想定。",
+        description: "測定値の各行。次のような表を想定し、記入がある表はすべて対象（複数ページにまたがることが多い）: 巻線抵抗値計測／絶縁抵抗値計測／軸ブレ測定／シャフトジャーナル部寸法測定／ブラケットハウジング部寸法測定／シャフト外径とカップリング内径の嵌め合い寸法測定／カーボンブラシの詳細／回転試験／温度試験／振動試験。",
         items: {
           type: "object",
           properties: {
@@ -94,9 +95,10 @@ export default async function handler(req, res) {
   try {
     const msg = await client.messages.create({
       model: MODEL,
-      max_tokens: 4096,
+      max_tokens: 16000,
       system: [
         "あなたはモーター整備工場の「分解整備成績書」（手書きPDF）を読み取り、社内の整備報告書作成システム向けに構造化するアシスタントです。",
+        "この帳票は複数ページ（数ページ〜10ページ程度）にわたり、測定値の表が多数含まれることがあります。ページ数や表の多さを理由に途中で切り上げず、すべてのページ・すべての表を確認してください。特に「測定値（measurements）」は空欄（記入なし）の表・行は無視してよいですが、数値が書き込まれている表・行は1件も漏らさず、最後のページまで抽出してください。",
         "手書き文字は丁寧に読み取ってください。自信が持てない箇所は正直に conf を \"mid\" または \"low\" にし、reason に理由を書いてください。",
         "存在しない情報を作り出さないでください。読めない・書かれていない項目は無理に埋めず、そもそも項目自体を出力しないか raw を空にしてください。",
         `参考情報（分かっていれば）: 顧客名=${customer || "不明"}, 管理番号=${ctrl || "不明"}`,
@@ -115,9 +117,16 @@ export default async function handler(req, res) {
     });
 
     const toolUse = msg.content.find((b) => b.type === "tool_use");
-    if (!toolUse) { res.status(502).json({ error: "モデルが構造化データを返しませんでした。もう一度お試しください。" }); return; }
+    if (!toolUse) {
+      // 出力上限に達して構造化データを最後まで生成できなかった場合もここに来ることがある
+      const reason = msg.stop_reason === "max_tokens" ? "（出力量が多く、上限に達しました）" : "";
+      res.status(502).json({ error: `モデルが構造化データを返しませんでした${reason}。もう一度お試しください。` });
+      return;
+    }
     const cost = estimateCost(msg.usage);
-    res.status(200).json({ result: toolUse.input, cost, model: MODEL });
+    // max_tokensで打ち切られた場合、fields/measurements等が途中までしか入っていない可能性がある
+    const truncated = msg.stop_reason === "max_tokens";
+    res.status(200).json({ result: toolUse.input, cost, model: MODEL, truncated });
   } catch (e) {
     res.status(500).json({ error: e?.message || "読み取りに失敗しました" });
   }

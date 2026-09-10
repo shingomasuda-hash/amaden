@@ -129,10 +129,11 @@ function StaffApp() {
     setExtractStatus("loading");
     navigate("processing");
     try {
-      const { result, cost } = await extractCase(file, { customer: activeCase.customer, ctrl: activeCase.ctrl });
+      const { result, cost, truncated } = await extractCase(file, { customer: activeCase.customer, ctrl: activeCase.ctrl });
       setExtraction(result);
       setExtractStatus("done");
       if (cost) logAiCost(activeCase, currentUser.name, cost).catch(() => {});
+      if (truncated) toast("読み取り結果が多く、AIの出力上限に達した可能性があります。各画面の内容を漏れなくご確認ください。");
     } catch (e) {
       setExtractError(e?.message || "読み取りに失敗しました");
       setExtractStatus("error");
