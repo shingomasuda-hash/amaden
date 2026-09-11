@@ -219,7 +219,7 @@ function StaffApp() {
         {screen === "review" && <Review extraction={extraction} onNext={() => navigate("work")} onAudit={onAudit} />}
         {screen === "work" && <WorkContent defects={extraction?.defects} onNext={() => navigate("meas")} onAudit={onAudit} />}
         {screen === "meas" && <Measurements measurements={extraction?.measurements} onNext={() => navigate("preview")} onAudit={onAudit} />}
-        {screen === "preview" && <Preview theCase={activeCaseLive} onNext={() => navigate("done")} onAudit={onAudit} />}
+        {screen === "preview" && <Preview theCase={activeCaseLive} extraction={extraction} onNext={() => navigate("done")} onAudit={onAudit} />}
         {screen === "done" && <Done theCase={activeCaseLive} onHome={goHome} />}
       </main>
 

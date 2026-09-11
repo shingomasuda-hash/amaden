@@ -499,13 +499,30 @@ export function Measurements({ measurements, onNext, onAudit }) {
   );
 }
 
-export function Preview({ theCase, onNext, onAudit }) {
-  // OCRは未接続のため、案件の実データ（顧客名・管理番号・担当者）以外は
-  // 前回のダミー値を出さず空欄から始める。値は下の欄で自由に入力できます。
-  const [previewData, setPreviewData] = useState({
-    customer: theCase?.customer || "", completeDate: "", ctrl: theCase?.ctrl || "", owner: theCase?.owner || "",
-    output: "", voltage: "", pole: "", note1: "", note2: "",
-  });
+// AIが読み取った項目から、ラベルに指定キーワードを含むものを探して値を返す（見つからなければ空文字）
+const findFieldValue = (fields, keywords) => {
+  const f = (fields || []).find((x) => keywords.some((k) => (x.label || "").includes(k)));
+  if (!f) return "";
+  const val = f.norm || f.raw || "";
+  return f.unit ? `${val}${f.unit}` : val;
+};
+
+// 案件の基本情報に加え、AIの読み取り結果（出力・電圧・極数・不具合の特記事項）を初期値として反映する
+const toPreviewDefaults = (theCase, extraction) => ({
+  customer: theCase?.customer || "",
+  completeDate: "",
+  ctrl: theCase?.ctrl || "",
+  owner: theCase?.owner || "",
+  output: findFieldValue(extraction?.fields, ["出力"]),
+  voltage: findFieldValue(extraction?.fields, ["電圧"]),
+  pole: findFieldValue(extraction?.fields, ["極数"]),
+  note1: (extraction?.defects || [])[0]?.raw || "",
+  note2: (extraction?.defects || [])[1]?.raw || "",
+});
+
+export function Preview({ theCase, extraction, onNext, onAudit }) {
+  // 案件の実データに加え、AI読み取り結果があればそれを初期値として反映する（下の欄で自由に修正可能）
+  const [previewData, setPreviewData] = useState(() => toPreviewDefaults(theCase, extraction));
   const focusValues = useRef({});
   const rows = [{ id: "customer", label: "顧客名" }, { id: "completeDate", label: "作業完了日" }, { id: "ctrl", label: "管理No" }, { id: "owner", label: "担当者" },
     { id: "output", label: "出力" }, { id: "voltage", label: "電圧" }, { id: "pole", label: "極数" }, { id: "note1", label: "特記事項①", long: true }, { id: "note2", label: "特記事項②", long: true }];
