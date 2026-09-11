@@ -201,7 +201,7 @@ export function Processing({ theCase, status, error, onDone, onBack }) {
 
 const REVIEW_FILTERS = ["要確認項目のみ", "全項目", "基本情報", "本体仕様", "作業内容", "測定値", "不具合・処置", "固定子コイル巻替"];
 // Claudeの読み取り結果（confごとに status/id を補って画面用の形にする）
-const toReviewFields = (extractedFields) =>
+export const toReviewFields = (extractedFields) =>
   (extractedFields || []).map((f, i) => ({
     id: `f${i}`,
     grp: f.grp || "その他",
@@ -214,8 +214,8 @@ const toReviewFields = (extractedFields) =>
     status: f.conf === "high" ? "confirmed" : "review",
   }));
 
-export function Review({ extraction, onNext, onAudit }) {
-  const [fields, setFields] = useState(() => toReviewFields(extraction?.fields));
+// fields/setFields は App.jsx が所有する状態（この画面での修正を提出プレビューへ連動させるため）
+export function Review({ fields = [], setFields, onNext, onAudit }) {
   const [filter, setFilter] = useState("全項目");
   const [selId, setSelId] = useState(null);
   const shown = useMemo(() => fields.filter((f) => {
@@ -346,11 +346,11 @@ export function Review({ extraction, onNext, onAudit }) {
 }
 
 // Claudeの読み取り結果（不具合・処置）を画面用の形にする。noteは特記事項欄への転記文面（編集可・初期値は原文）
-const toDefectRows = (defects) =>
+export const toDefectRows = (defects) =>
   (defects || []).map((d, i) => ({ id: `d${i}`, label: d.label || "不具合", raw: d.raw || "", note: d.raw || "" }));
 
-export function WorkContent({ defects, onNext, onAudit }) {
-  const [rows, setRows] = useState(() => toDefectRows(defects));
+// rows/setRows は App.jsx が所有する状態（提出プレビュー画面へ編集内容を連動させるため）
+export function WorkContent({ rows = [], setRows, onNext, onAudit }) {
   const focusValues = useRef({});
   const setNote = (id, v) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, note: v } : r)));
   const onFocus = (id) => { focusValues.current[id] = rows.find((r) => r.id === id)?.note ?? ""; };
@@ -406,7 +406,7 @@ export function WorkContent({ defects, onNext, onAudit }) {
 }
 
 // Claudeの読み取り結果（測定値の各行）を画面用の形にする
-const toMeasRows = (measurements) =>
+export const toMeasRows = (measurements) =>
   (measurements || []).map((m, i) => ({
     id: `m${i}`,
     title: m.title || "測定値",
@@ -419,8 +419,8 @@ const toMeasRows = (measurements) =>
     conf: ["high", "mid", "low"].includes(m.conf) ? m.conf : "mid",
   }));
 
-export function Measurements({ measurements, onNext, onAudit }) {
-  const [rows, setRows] = useState(() => toMeasRows(measurements));
+// rows/setRows は App.jsx が所有する状態（提出プレビュー画面へ編集内容を連動させるため）
+export function Measurements({ rows = [], setRows, onNext, onAudit }) {
   const focusValues = useRef({});
   const setField = (id, patch) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   const onFocus = (id, key) => { focusValues.current[id + key] = rows.find((r) => r.id === id)?.[key] ?? ""; };
@@ -507,22 +507,22 @@ const findFieldValue = (fields, keywords) => {
   return f.unit ? `${val}${f.unit}` : val;
 };
 
-// 案件の基本情報に加え、AIの読み取り結果（出力・電圧・極数・不具合の特記事項）を初期値として反映する
-const toPreviewDefaults = (theCase, extraction) => ({
+// 案件の基本情報に加え、結果確認・作業内容の各画面で確定した内容（出力・電圧・極数・特記事項）を初期値として反映する
+const toPreviewDefaults = (theCase, reviewFields, workRows) => ({
   customer: theCase?.customer || "",
   completeDate: "",
   ctrl: theCase?.ctrl || "",
   owner: theCase?.owner || "",
-  output: findFieldValue(extraction?.fields, ["出力"]),
-  voltage: findFieldValue(extraction?.fields, ["電圧"]),
-  pole: findFieldValue(extraction?.fields, ["極数"]),
-  note1: (extraction?.defects || [])[0]?.raw || "",
-  note2: (extraction?.defects || [])[1]?.raw || "",
+  output: findFieldValue(reviewFields, ["出力"]),
+  voltage: findFieldValue(reviewFields, ["電圧"]),
+  pole: findFieldValue(reviewFields, ["極数"]),
+  note1: (workRows || [])[0]?.note || "",
+  note2: (workRows || [])[1]?.note || "",
 });
 
-export function Preview({ theCase, extraction, onNext, onAudit }) {
-  // 案件の実データに加え、AI読み取り結果があればそれを初期値として反映する（下の欄で自由に修正可能）
-  const [previewData, setPreviewData] = useState(() => toPreviewDefaults(theCase, extraction));
+export function Preview({ theCase, reviewFields, workRows, onNext, onAudit }) {
+  // 案件の実データに加え、結果確認・作業内容画面での修正内容があればそれを初期値として反映する（下の欄で自由に修正可能）
+  const [previewData, setPreviewData] = useState(() => toPreviewDefaults(theCase, reviewFields, workRows));
   const focusValues = useRef({});
   const rows = [{ id: "customer", label: "顧客名" }, { id: "completeDate", label: "作業完了日" }, { id: "ctrl", label: "管理No" }, { id: "owner", label: "担当者" },
     { id: "output", label: "出力" }, { id: "voltage", label: "電圧" }, { id: "pole", label: "極数" }, { id: "note1", label: "特記事項①", long: true }, { id: "note2", label: "特記事項②", long: true }];

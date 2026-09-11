@@ -11,7 +11,10 @@ import { CustomerPortal } from "./screens/CustomerPortal";
 import { Dashboard } from "./screens/Dashboard";
 import { CaseChatScreen } from "./screens/CaseChatScreen";
 import { AdminPanel } from "./screens/AdminPanel";
-import { Stepper, UploadScreen, Processing, Review, WorkContent, Measurements, Preview, Done } from "./screens/Workflow";
+import {
+  Stepper, UploadScreen, Processing, Review, WorkContent, Measurements, Preview, Done,
+  toReviewFields, toDefectRows, toMeasRows,
+} from "./screens/Workflow";
 import { STEPS } from "./lib/mockWorkflow";
 
 const parseCustomerToken = () => {
@@ -60,10 +63,17 @@ function StaffApp() {
   const toast = (m) => setToastMsg(m);
 
   // AI読み取り（Claude API）の状態。案件をまたいで残らないよう、案件を切り替える際にリセットする。
-  const [extraction, setExtraction] = useState(null); // { fields, defects, measurements }
   const [extractStatus, setExtractStatus] = useState("idle"); // idle | loading | done | error
   const [extractError, setExtractError] = useState("");
-  const resetExtraction = () => { setExtraction(null); setExtractStatus("idle"); setExtractError(""); };
+  // 結果確認・作業内容・測定値の各画面での編集内容（AIの生の読み取り結果から初期化）。
+  // ここで一元管理することで、画面を行き来しても編集内容が保持され、提出プレビューにも反映される。
+  const [reviewFields, setReviewFields] = useState([]);
+  const [workRows, setWorkRows] = useState([]);
+  const [measRows, setMeasRows] = useState([]);
+  const resetExtraction = () => {
+    setExtractStatus("idle"); setExtractError("");
+    setReviewFields([]); setWorkRows([]); setMeasRows([]);
+  };
 
   // 画面遷移は必ずこれを通す（forward）。前の画面をスタックに積んでおくことで「戻る」ができる。
   const navigate = (next) => {
@@ -124,13 +134,14 @@ function StaffApp() {
   // アップロードされたPDFをAI(Claude)に読み取らせる。結果は各確認画面(Review/WorkContent/Measurements)へ渡す。
   const startExtraction = async (file) => {
     if (!activeCase) return;
-    setExtraction(null);
     setExtractError("");
     setExtractStatus("loading");
     navigate("processing");
     try {
       const { result, cost, truncated } = await extractCase(file, { customer: activeCase.customer, ctrl: activeCase.ctrl });
-      setExtraction(result);
+      setReviewFields(toReviewFields(result?.fields));
+      setWorkRows(toDefectRows(result?.defects));
+      setMeasRows(toMeasRows(result?.measurements));
       setExtractStatus("done");
       if (cost) logAiCost(activeCase, currentUser.name, cost).catch(() => {});
       if (truncated) toast("読み取り結果が多く、AIの出力上限に達した可能性があります。各画面の内容を漏れなくご確認ください。");
@@ -216,10 +227,10 @@ function StaffApp() {
         )}
         {screen === "upload" && <UploadScreen theCase={activeCaseLive} owners={profiles.filter((p) => p.role !== "pending").map((p) => p.name)} onStart={startExtraction} onAudit={onAudit} />}
         {screen === "processing" && <Processing theCase={activeCaseLive} status={extractStatus} error={extractError} onDone={() => navigate("review")} onBack={backToUpload} />}
-        {screen === "review" && <Review extraction={extraction} onNext={() => navigate("work")} onAudit={onAudit} />}
-        {screen === "work" && <WorkContent defects={extraction?.defects} onNext={() => navigate("meas")} onAudit={onAudit} />}
-        {screen === "meas" && <Measurements measurements={extraction?.measurements} onNext={() => navigate("preview")} onAudit={onAudit} />}
-        {screen === "preview" && <Preview theCase={activeCaseLive} extraction={extraction} onNext={() => navigate("done")} onAudit={onAudit} />}
+        {screen === "review" && <Review fields={reviewFields} setFields={setReviewFields} onNext={() => navigate("work")} onAudit={onAudit} />}
+        {screen === "work" && <WorkContent rows={workRows} setRows={setWorkRows} onNext={() => navigate("meas")} onAudit={onAudit} />}
+        {screen === "meas" && <Measurements rows={measRows} setRows={setMeasRows} onNext={() => navigate("preview")} onAudit={onAudit} />}
+        {screen === "preview" && <Preview theCase={activeCaseLive} reviewFields={reviewFields} workRows={workRows} onNext={() => navigate("done")} onAudit={onAudit} />}
         {screen === "done" && <Done theCase={activeCaseLive} onHome={goHome} />}
       </main>
 
