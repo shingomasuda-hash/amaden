@@ -132,6 +132,7 @@ export default async function handler(req, res) {
       client.messages.create({
         model: MODEL,
         max_tokens: 6000,
+        thinking: { type: "disabled" },
         system: [...baseSystem(customer, ctrl), "今回は「基本情報・本体仕様・目視/触診調査結果」など、測定値の表以外の項目一覧のみを読み取ってください。"].join("\n"),
         tools: [FIELDS_TOOL],
         tool_choice: { type: "tool", name: "submit_fields" },
@@ -140,6 +141,7 @@ export default async function handler(req, res) {
       client.messages.create({
         model: MODEL,
         max_tokens: 16000,
+        thinking: { type: "disabled" },
         system: [...baseSystem(customer, ctrl), "今回は「不具合・処置」と「測定値」のみを読み取ってください。測定値は、記入がある表・行を1件も漏らさず、最後のページまで抽出してください（空欄の表・行は無視してよい）。"].join("\n"),
         tools: [DEFECTS_MEASUREMENTS_TOOL],
         tool_choice: { type: "tool", name: "submit_defects_measurements" },
@@ -149,6 +151,9 @@ export default async function handler(req, res) {
 
     const fieldsTool = fieldsMsg.content.find((b) => b.type === "tool_use");
     const defMeasTool = defMeasMsg.content.find((b) => b.type === "tool_use");
+    console.log("[extract] fields:", { stop: fieldsMsg.stop_reason, usage: fieldsMsg.usage, hasTool: !!fieldsTool, contentTypes: fieldsMsg.content.map((b) => b.type) });
+    console.log("[extract] defects/measurements:", { stop: defMeasMsg.stop_reason, usage: defMeasMsg.usage, hasTool: !!defMeasTool, contentTypes: defMeasMsg.content.map((b) => b.type) });
+
     if (!fieldsTool || !defMeasTool) {
       // 出力上限に達して構造化データを最後まで生成できなかった場合もここに来ることがある
       const anyTruncated = fieldsMsg.stop_reason === "max_tokens" || defMeasMsg.stop_reason === "max_tokens";
@@ -162,11 +167,24 @@ export default async function handler(req, res) {
       defects: Array.isArray(defMeasTool.input.defects) ? defMeasTool.input.defects : [],
       measurements: Array.isArray(defMeasTool.input.measurements) ? defMeasTool.input.measurements : [],
     };
+    console.log("[extract] 件数:", { fields: result.fields.length, defects: result.defects.length, measurements: result.measurements.length });
+
+    // ツール呼び出し自体は成功したが3項目すべて0件、というのは今回のPDFでは本来あり得ない
+    // （実データが存在するため）。原因調査用に、通常のエラーとして診断情報つきで返す。
+    if (result.fields.length === 0 && result.defects.length === 0 && result.measurements.length === 0) {
+      console.error("[extract] 全項目が空でした", { fieldsStop: fieldsMsg.stop_reason, defMeasStop: defMeasMsg.stop_reason });
+      res.status(502).json({
+        error: `読み取り結果が空でした（診断情報: fields停止理由=${fieldsMsg.stop_reason}, 不具合/測定値停止理由=${defMeasMsg.stop_reason}）。もう一度お試しいただくか、この画面をスクリーンショットして共有してください。`,
+      });
+      return;
+    }
+
     const cost = estimateCost(sumUsage(fieldsMsg.usage, defMeasMsg.usage));
     // max_tokensで打ち切られた場合、fields/measurements等が途中までしか入っていない可能性がある
     const truncated = fieldsMsg.stop_reason === "max_tokens" || defMeasMsg.stop_reason === "max_tokens";
     res.status(200).json({ result, cost, model: MODEL, truncated });
   } catch (e) {
+    console.error("[extract] エラー:", e);
     res.status(500).json({ error: e?.message || "読み取りに失敗しました" });
   }
 }
