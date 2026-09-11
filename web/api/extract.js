@@ -132,7 +132,6 @@ export default async function handler(req, res) {
       client.messages.create({
         model: MODEL,
         max_tokens: 6000,
-        thinking: { type: "disabled" }, // 単純な読み取り・構造化タスクのため、推論に時間をかけず速度を優先
         system: [...baseSystem(customer, ctrl), "今回は「基本情報・本体仕様・目視/触診調査結果」など、測定値の表以外の項目一覧のみを読み取ってください。"].join("\n"),
         tools: [FIELDS_TOOL],
         tool_choice: { type: "tool", name: "submit_fields" },
@@ -141,7 +140,6 @@ export default async function handler(req, res) {
       client.messages.create({
         model: MODEL,
         max_tokens: 16000,
-        thinking: { type: "disabled" },
         system: [...baseSystem(customer, ctrl), "今回は「不具合・処置」と「測定値」のみを読み取ってください。測定値は、記入がある表・行を1件も漏らさず、最後のページまで抽出してください（空欄の表・行は無視してよい）。"].join("\n"),
         tools: [DEFECTS_MEASUREMENTS_TOOL],
         tool_choice: { type: "tool", name: "submit_defects_measurements" },
