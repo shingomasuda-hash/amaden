@@ -508,8 +508,8 @@ const findFieldValue = (fields, keywords) => {
   return f.unit ? `${val}${f.unit}` : val;
 };
 
-// 案件の基本情報に加え、結果確認・作業内容の各画面で確定した内容（出力・電圧・極数・特記事項）を初期値として反映する
-const toPreviewDefaults = (theCase, reviewFields, workRows) => ({
+// 案件の基本情報に加え、結果確認画面で確定した内容（出力・電圧・極数）を初期値として反映する
+const toPreviewDefaults = (theCase, reviewFields) => ({
   customer: theCase?.customer || "",
   completeDate: "",
   ctrl: theCase?.ctrl || "",
@@ -517,18 +517,99 @@ const toPreviewDefaults = (theCase, reviewFields, workRows) => ({
   output: findFieldValue(reviewFields, ["出力"]),
   voltage: findFieldValue(reviewFields, ["電圧"]),
   pole: findFieldValue(reviewFields, ["極数"]),
-  note1: (workRows || [])[0]?.note || "",
-  note2: (workRows || [])[1]?.note || "",
 });
 
-export function Preview({ theCase, reviewFields, workRows, onNext, onAudit }) {
-  // 案件の実データに加え、結果確認・作業内容画面での修正内容があればそれを初期値として反映する（下の欄で自由に修正可能）
-  const [previewData, setPreviewData] = useState(() => toPreviewDefaults(theCase, reviewFields, workRows));
+const groupBy = (list, keyFn, fallback) => {
+  const map = new Map();
+  (list || []).forEach((item) => {
+    const k = keyFn(item) || fallback;
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(item);
+  });
+  return Array.from(map.entries());
+};
+
+const paperBox = { border: "1px solid #cfd6dd", borderTop: "none" };
+const paperHead = { borderColor: "#d9dee4", backgroundColor: "#f6f8fa", color: "#1f2937" };
+
+// 結果確認（全項目）・作業内容（特記事項）・測定値の内容を、提出用レポートの続きとして表示する部分。
+// 入力欄は一切なく、静的なDOMのみなので画面表示とPDF化(html2canvas)の両方でそのまま使い回せる。
+function ReportExtraSections({ reviewFields, workRows, measRows }) {
+  const fieldGroups = useMemo(() => groupBy(reviewFields, (f) => f.grp, "その他"), [reviewFields]);
+  const measGroups = useMemo(() => groupBy(measRows, (r) => r.title, "測定値"), [measRows]);
+  return (
+    <>
+      {fieldGroups.length > 0 && (
+        <div className="mx-auto bg-white" style={{ maxWidth: 640, ...paperBox }}>
+          <div className="px-3 py-2 border-b text-[12px] font-semibold" style={paperHead}>確認済み項目</div>
+          {fieldGroups.map(([grp, items]) => (
+            <div key={grp}>
+              <div className="px-3 pt-2 text-[11px] font-semibold" style={{ color: "#334155" }}>{grp}</div>
+              {items.map((f) => (
+                <div key={f.id} className="flex border-b" style={{ borderColor: "#eef1f4" }}>
+                  <div className="w-32 px-3 py-1 text-[11px] shrink-0" style={{ color: "#64748b" }}>{f.label}</div>
+                  <div className="flex-1 px-2 py-1 text-[12px]" style={{ color: "#0f172a" }}>{f.norm || f.raw || "—"}{f.unit ? ` ${f.unit}` : ""}</div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+      {workRows?.length > 0 && (
+        <div className="mx-auto bg-white" style={{ maxWidth: 640, ...paperBox }}>
+          <div className="px-3 py-2 border-b text-[12px] font-semibold" style={paperHead}>作業内容・特記事項</div>
+          {workRows.map((r) => (
+            <div key={r.id} className="px-3 py-2 border-b" style={{ borderColor: "#eef1f4" }}>
+              <div className="text-[11px]" style={{ color: "#64748b" }}>{r.label}</div>
+              <div className="text-[12px] whitespace-pre-wrap" style={{ color: "#0f172a" }}>{r.note || "—"}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {measGroups.length > 0 && (
+        <div className="mx-auto bg-white" style={{ maxWidth: 640, ...paperBox }}>
+          <div className="px-3 py-2 border-b text-[12px] font-semibold" style={paperHead}>測定値</div>
+          {measGroups.map(([title, items]) => (
+            <div key={title} className="px-3 py-2 border-b" style={{ borderColor: "#eef1f4" }}>
+              <div className="text-[11px] font-semibold mb-1" style={{ color: "#334155" }}>{title}</div>
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr style={{ color: "#64748b" }}>
+                    <th className="text-left font-medium py-0.5">項目</th>
+                    <th className="text-right font-medium py-0.5">管理値</th>
+                    <th className="text-right font-medium py-0.5">整備前</th>
+                    <th className="text-right font-medium py-0.5">整備後</th>
+                    <th className="text-right font-medium py-0.5">判定</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((r) => (
+                    <tr key={r.id} className="border-t" style={{ borderColor: "#eef1f4" }}>
+                      <td className="py-0.5" style={{ color: "#0f172a" }}>{r.item}{r.unit ? `（${r.unit}）` : ""}</td>
+                      <td className="py-0.5 text-right" style={{ color: r.mgmt ? "#0f172a" : "#cbd5e1" }}>{r.mgmt || "—"}</td>
+                      <td className="py-0.5 text-right" style={{ color: r.before ? "#0f172a" : "#cbd5e1" }}>{r.before || "—"}</td>
+                      <td className="py-0.5 text-right" style={{ color: r.after ? "#0f172a" : "#cbd5e1" }}>{r.after || "—"}</td>
+                      <td className="py-0.5 text-right" style={{ color: "#0f172a" }}>{r.judge || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+export function Preview({ theCase, reviewFields, workRows, measRows, onNext, onAudit }) {
+  // 案件の実データに加え、結果確認画面での修正内容があればそれを初期値として反映する（下の欄で自由に修正可能）
+  const [previewData, setPreviewData] = useState(() => toPreviewDefaults(theCase, reviewFields));
   const [generating, setGenerating] = useState(false);
   const focusValues = useRef({});
-  const printRef = useRef(null); // PDF化用（inputではなく文字として描画した非表示コピー）
+  const printRef = useRef(null); // PDF化用（inputではなく文字として描画した非表示コピー。確認済み項目/作業内容/測定値も含めてまるごとここに入れる）
   const rows = [{ id: "customer", label: "顧客名" }, { id: "completeDate", label: "作業完了日" }, { id: "ctrl", label: "管理No" }, { id: "owner", label: "担当者" },
-    { id: "output", label: "出力" }, { id: "voltage", label: "電圧" }, { id: "pole", label: "極数" }, { id: "note1", label: "特記事項①", long: true }, { id: "note2", label: "特記事項②", long: true }];
+    { id: "output", label: "出力" }, { id: "voltage", label: "電圧" }, { id: "pole", label: "極数" }];
   const update = (id, v) => setPreviewData((d) => ({ ...d, [id]: v }));
   const onFocus = (id) => { focusValues.current[id] = previewData[id] || ""; };
   const onBlur = (id) => {
@@ -539,7 +620,7 @@ export function Preview({ theCase, reviewFields, workRows, onNext, onAudit }) {
     if (generating) return;
     setGenerating(true);
     try {
-      exportReportExcel(previewData, theCase?.ctrl);
+      exportReportExcel(previewData, theCase?.ctrl, reviewFields, workRows, measRows);
       await exportReportPdf(printRef.current, theCase?.ctrl);
       onAudit?.("帳票生成", theCase?.ctrl || "案件", "—", "Excel/PDFをダウンロード");
       onNext();
@@ -549,7 +630,7 @@ export function Preview({ theCase, reviewFields, workRows, onNext, onAudit }) {
       setGenerating(false);
     }
   };
-  const reportBody = (
+  const reportHead = (
     <>
       <div className="text-center py-3 border-b" style={{ borderColor: "#cfd6dd", backgroundColor: "#f3f5f7" }}>
         <div className="text-base font-semibold tracking-widest" style={{ color: "#1f2937" }}>整 備 報 告 書</div>
@@ -557,7 +638,7 @@ export function Preview({ theCase, reviewFields, workRows, onNext, onAudit }) {
       {rows.map((r) => (
         <div key={r.id} className="flex border-b" style={{ borderColor: "#d9dee4" }}>
           <div className="w-32 px-2 py-1.5 text-[11px] border-r shrink-0" style={{ borderColor: "#d9dee4", backgroundColor: "#f6f8fa", color: "#64748b" }}>{r.label}</div>
-          <div className="flex-1 px-2 py-1.5 text-[13px]" style={{ minHeight: r.long ? 48 : "auto", whiteSpace: "pre-wrap", color: "#0f172a" }}>{previewData[r.id] || ""}</div>
+          <div className="flex-1 px-2 py-1.5 text-[13px]" style={{ whiteSpace: "pre-wrap", color: "#0f172a" }}>{previewData[r.id] || ""}</div>
         </div>
       ))}
     </>
@@ -568,6 +649,10 @@ export function Preview({ theCase, reviewFields, workRows, onNext, onAudit }) {
         <h1 className="text-lg font-semibold" style={{ color: C.ink }}>提出用プレビュー</h1>
         <Btn variant="primary" icon={FileText} onClick={generate} disabled={generating}>{generating ? "生成中…" : "Excel・PDFを生成"}</Btn>
       </div>
+      <div className="flex items-start gap-1.5 text-xs mb-3 rounded px-3 py-2" style={{ color: "#475569", backgroundColor: C.panel }}>
+        <Info size={13} className="mt-0.5" />
+        上部の基本情報は自由に編集できます。その下の「確認済み項目」「作業内容・特記事項」「測定値」は、各画面で確定した内容がそのまま表示されます（修正はそれぞれの画面で行ってください）。
+      </div>
       <Card>
         <div className="mx-auto bg-white shadow-sm" style={{ maxWidth: 640, border: "1px solid #cfd6dd" }}>
           <div className="text-center py-3 border-b" style={{ borderColor: "#cfd6dd", backgroundColor: "#f3f5f7" }}>
@@ -577,19 +662,19 @@ export function Preview({ theCase, reviewFields, workRows, onNext, onAudit }) {
             <div key={r.id} className="flex border-b" style={{ borderColor: "#d9dee4" }}>
               <div className="w-32 px-2 py-1.5 text-[11px] border-r shrink-0" style={{ borderColor: "#d9dee4", backgroundColor: "#f6f8fa", color: "#64748b" }}>{r.label}</div>
               <div className="flex-1 px-2 py-1.5 text-[13px]">
-                {r.long ? (
-                  <textarea value={previewData[r.id] || ""} rows={2} onChange={(e) => update(r.id, e.target.value)} onFocus={() => onFocus(r.id)} onBlur={() => onBlur(r.id)} className="w-full bg-transparent outline-none" />
-                ) : (
-                  <input value={previewData[r.id] || ""} onChange={(e) => update(r.id, e.target.value)} onFocus={() => onFocus(r.id)} onBlur={() => onBlur(r.id)} className="w-full bg-transparent outline-none" />
-                )}
+                <input value={previewData[r.id] || ""} onChange={(e) => update(r.id, e.target.value)} onFocus={() => onFocus(r.id)} onBlur={() => onBlur(r.id)} className="w-full bg-transparent outline-none" />
               </div>
             </div>
           ))}
         </div>
+        <ReportExtraSections reviewFields={reviewFields} workRows={workRows} measRows={measRows} />
       </Card>
       {/* PDF化専用の非表示コピー（inputだとhtml2canvasでの描画が不安定なため、確定した文字として描画する） */}
       <div style={{ position: "fixed", top: 0, left: -9999, width: 640 }} aria-hidden="true">
-        <div ref={printRef} className="bg-white" style={{ border: "1px solid #cfd6dd" }}>{reportBody}</div>
+        <div ref={printRef} className="bg-white">
+          <div style={{ border: "1px solid #cfd6dd" }}>{reportHead}</div>
+          <ReportExtraSections reviewFields={reviewFields} workRows={workRows} measRows={measRows} />
+        </div>
       </div>
       <div className="mt-4"><ProtoNote /></div>
     </div>

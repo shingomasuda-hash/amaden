@@ -230,7 +230,7 @@ function StaffApp() {
         {screen === "review" && <Review fields={reviewFields} setFields={setReviewFields} onNext={() => navigate("work")} onAudit={onAudit} />}
         {screen === "work" && <WorkContent rows={workRows} setRows={setWorkRows} onNext={() => navigate("meas")} onAudit={onAudit} />}
         {screen === "meas" && <Measurements rows={measRows} setRows={setMeasRows} onNext={() => navigate("preview")} onAudit={onAudit} />}
-        {screen === "preview" && <Preview theCase={activeCaseLive} reviewFields={reviewFields} workRows={workRows} onNext={() => navigate("done")} onAudit={onAudit} />}
+        {screen === "preview" && <Preview theCase={activeCaseLive} reviewFields={reviewFields} workRows={workRows} measRows={measRows} onNext={() => navigate("done")} onAudit={onAudit} />}
         {screen === "done" && <Done theCase={activeCaseLive} onHome={goHome} toast={toast} />}
       </main>
 
