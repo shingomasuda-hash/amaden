@@ -33,6 +33,8 @@ service cloud.firestore {
     match /cases/{ctrl} {
       allow read: if isActive();
       allow create, update: if isStaff();
+      // 削除は取り消せない操作のため管理者のみ
+      allow delete: if isAdmin();
     }
 
     // ---------------- caseLinks（先方用の共有トークン。ドキュメントIDそのものがトークン） ----------------

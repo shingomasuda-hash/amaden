@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  collection, doc, onSnapshot, query, orderBy, limit, addDoc, setDoc, updateDoc,
+  collection, doc, onSnapshot, query, orderBy, limit, addDoc, setDoc, updateDoc, deleteDoc,
   serverTimestamp, getDoc, increment,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -112,6 +112,26 @@ export async function createCase({ ctrl, customer, kind, rewind, spec, owner }) 
 
 export async function updateCaseOwner(theCase, owner) {
   await updateDoc(doc(db, "cases", theCase.ctrl), { owner, updated_at: serverTimestamp() });
+}
+
+/* 案件の基本情報（顧客名・モーター種別・巻替・仕様）を編集する。
+   先方ポータル（caseLinks）に見えている情報も同時に更新する。 */
+export async function updateCase(theCase, patch) {
+  await updateDoc(doc(db, "cases", theCase.ctrl), { ...patch, updated_at: serverTimestamp() });
+  if (theCase.linkToken) {
+    const linkPatch = {};
+    ["customer", "kind", "rewind", "spec"].forEach((k) => { if (k in patch) linkPatch[k] = patch[k]; });
+    if (Object.keys(linkPatch).length) await updateDoc(doc(db, "caseLinks", theCase.linkToken), linkPatch);
+  }
+}
+
+/* 案件を削除する（先方用リンクも合わせて削除し、リンク経由でのアクセスもできなくする）。
+   取り消せない操作のため、呼び出し側で確認を取ってから呼ぶこと。 */
+export async function deleteCase(theCase) {
+  if (theCase.linkToken) {
+    try { await deleteDoc(doc(db, "caseLinks", theCase.linkToken)); } catch { /* リンクが既に無い場合などは無視 */ }
+  }
+  await deleteDoc(doc(db, "cases", theCase.ctrl));
 }
 
 export async function toggleCaseAi(theCase, enabled) {

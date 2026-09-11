@@ -1,12 +1,90 @@
 import { useMemo, useState } from "react";
 import { C, STATUS } from "../lib/theme";
-import { Plus, ShieldCheck, Filter, Search, MessageSquare, Link2, Eye, RotateCcw, Cpu, FileCheck2, AlertTriangle } from "../lib/icons";
+import { Plus, ShieldCheck, Filter, Search, MessageSquare, Link2, Eye, RotateCcw, Cpu, FileCheck2, AlertTriangle, Pencil, Trash2 } from "../lib/icons";
 import { Btn, Card, Stat, StatusBadge, ProtoNote } from "../components/ui";
-import { logActivity, pushSystemNote, updateCaseOwner } from "../lib/useData";
+import { logActivity, pushSystemNote, updateCaseOwner, updateCase, deleteCase } from "../lib/useData";
+
+function EditCaseModal({ theCase, onClose, onSave }) {
+  const [customer, setCustomer] = useState(theCase.customer || "");
+  const [kind, setKind] = useState(theCase.kind || "交流");
+  const [rewind, setRewind] = useState(!!theCase.rewind);
+  const [spec, setSpec] = useState(theCase.spec || "");
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    if (!customer.trim() || saving) return;
+    setSaving(true);
+    try { await onSave({ customer: customer.trim(), kind, rewind, spec }); } finally { setSaving(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ backgroundColor: "rgba(15,23,42,.4)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full bg-white rounded-lg border p-5" style={{ maxWidth: 440, borderColor: C.line }}>
+        <div className="text-sm font-semibold mb-4" style={{ color: C.ink }}>案件情報の編集（{theCase.ctrl}）</div>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs block mb-1" style={{ color: C.sub }}>顧客名</label>
+            <input value={customer} onChange={(e) => setCustomer(e.target.value)}
+              className="w-full rounded border px-2.5 py-1.5 text-sm" style={{ borderColor: C.line2, color: C.ink }} />
+          </div>
+          <div className="flex items-end gap-4">
+            <div>
+              <label className="text-xs block mb-1" style={{ color: C.sub }}>モーター種別</label>
+              <select value={kind} onChange={(e) => setKind(e.target.value)}
+                className="rounded border px-2.5 py-1.5 text-sm" style={{ borderColor: C.line2, color: C.ink }}>
+                <option value="交流">交流</option>
+                <option value="直流">直流</option>
+              </select>
+            </div>
+            <label className="flex items-center gap-1.5 text-sm py-1.5 cursor-pointer" style={{ color: C.ink }}>
+              <input type="checkbox" checked={rewind} onChange={(e) => setRewind(e.target.checked)} />巻替
+            </label>
+          </div>
+          <div>
+            <label className="text-xs block mb-1" style={{ color: C.sub }}>仕様・補足</label>
+            <input value={spec} onChange={(e) => setSpec(e.target.value)}
+              className="w-full rounded border px-2.5 py-1.5 text-sm" style={{ borderColor: C.line2, color: C.ink }} />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-5">
+          <Btn variant="outline" onClick={onClose}>キャンセル</Btn>
+          <Btn variant="primary" onClick={save} disabled={saving || !customer.trim()}>保存</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeleteCaseModal({ theCase, onClose, onConfirm }) {
+  const [deleting, setDeleting] = useState(false);
+  const run = async () => {
+    if (deleting) return;
+    setDeleting(true);
+    try { await onConfirm(); } finally { setDeleting(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ backgroundColor: "rgba(15,23,42,.4)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full bg-white rounded-lg border p-5" style={{ maxWidth: 400, borderColor: C.line }}>
+        <div className="flex items-center gap-2 mb-2">
+          <AlertTriangle size={18} style={{ color: "#dc2626" }} />
+          <div className="text-sm font-semibold" style={{ color: C.ink }}>案件を削除しますか？</div>
+        </div>
+        <div className="text-xs leading-relaxed" style={{ color: C.sub }}>
+          <b className="font-mono" style={{ color: C.ink }}>{theCase.ctrl}</b>（{theCase.customer}）を削除します。<br />
+          この操作は取り消せません。先方用リンクも同時に無効になります。
+        </div>
+        <div className="flex justify-end gap-2 mt-5">
+          <Btn variant="outline" onClick={onClose}>キャンセル</Btn>
+          <Btn variant="danger" onClick={run} disabled={deleting}>削除する</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function Dashboard({ cases, profiles, threadCounts, currentUser, canManage, isAdmin, onOpenCase, onNewCase, onAdmin, onOpenChat, onCopyLink }) {
   const monthOptions = useMemo(() => Array.from(new Set(cases.map((c) => (c.caseDate || "").slice(0, 7)).filter(Boolean))).sort().reverse(), [cases]);
   const [month, setMonth] = useState("all");
+  const [editingCase, setEditingCase] = useState(null);
+  const [deletingCase, setDeletingCase] = useState(null);
   const owners = profiles.filter((p) => p.status === "有効" && p.role !== "pending").map((p) => p.name);
 
   const filtered = month === "all" ? cases : cases.filter((c) => (c.caseDate || "").slice(0, 7) === month);
@@ -18,6 +96,22 @@ export function Dashboard({ cases, profiles, threadCounts, currentUser, canManag
     await updateCaseOwner(c, owner);
     await logActivity(currentUser.name, "担当者変更", c.ctrl, c.owner || "未設定", owner || "未設定");
     await pushSystemNote(c, `${currentUser.name} が担当者を「${c.owner || "未設定"}」から「${owner || "未設定"}」に変更しました。`);
+  };
+
+  const saveEdit = async (patch) => {
+    const before = `${editingCase.customer} / ${editingCase.kind}${editingCase.rewind ? "・巻替" : ""}`;
+    const after = `${patch.customer} / ${patch.kind}${patch.rewind ? "・巻替" : ""}`;
+    await updateCase(editingCase, patch);
+    await logActivity(currentUser.name, "案件情報を編集", editingCase.ctrl, before, after);
+    await pushSystemNote(editingCase, `${currentUser.name} が案件情報を編集しました。`);
+    setEditingCase(null);
+  };
+
+  const confirmDelete = async () => {
+    const c = deletingCase;
+    await logActivity(currentUser.name, "案件削除", c.ctrl, c.customer, "削除");
+    await deleteCase(c);
+    setDeletingCase(null);
   };
 
   return (
@@ -96,17 +190,29 @@ export function Dashboard({ cases, profiles, threadCounts, currentUser, canManag
                   </div>
                 </td>
                 <td className="px-5 py-3">
-                  {!canManage ? (
-                    <Btn size="sm" variant="outline" icon={Eye} onClick={() => onOpenCase(c, "preview")}>表示（閲覧のみ）</Btn>
-                  ) : c.status === "error" ? (
-                    <Btn size="sm" variant="outline" icon={RotateCcw} onClick={() => onOpenCase(c, "upload")}>再処理</Btn>
-                  ) : c.status === "done" ? (
-                    <Btn size="sm" variant="outline" icon={Eye} onClick={() => onOpenCase(c, "preview")}>表示</Btn>
-                  ) : c.status === "process" ? (
-                    <Btn size="sm" variant="outline" icon={Cpu} onClick={() => onOpenCase(c, "processing")}>状況</Btn>
-                  ) : (
-                    <Btn size="sm" variant="primary" icon={FileCheck2} onClick={() => onOpenCase(c, "review")}>確認する</Btn>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {!canManage ? (
+                      <Btn size="sm" variant="outline" icon={Eye} onClick={() => onOpenCase(c, "preview")}>表示（閲覧のみ）</Btn>
+                    ) : c.status === "error" ? (
+                      <Btn size="sm" variant="outline" icon={RotateCcw} onClick={() => onOpenCase(c, "upload")}>再処理</Btn>
+                    ) : c.status === "done" ? (
+                      <Btn size="sm" variant="outline" icon={Eye} onClick={() => onOpenCase(c, "preview")}>表示</Btn>
+                    ) : c.status === "process" ? (
+                      <Btn size="sm" variant="outline" icon={Cpu} onClick={() => onOpenCase(c, "processing")}>状況</Btn>
+                    ) : (
+                      <Btn size="sm" variant="primary" icon={FileCheck2} onClick={() => onOpenCase(c, "review")}>確認する</Btn>
+                    )}
+                    {canManage && (
+                      <button title="案件情報を編集" onClick={() => setEditingCase(c)} className="p-1.5 rounded hover:bg-slate-100">
+                        <Pencil size={14} style={{ color: C.sub }} />
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button title="案件を削除" onClick={() => setDeletingCase(c)} className="p-1.5 rounded hover:bg-slate-100">
+                        <Trash2 size={14} style={{ color: "#dc2626" }} />
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -121,6 +227,8 @@ export function Dashboard({ cases, profiles, threadCounts, currentUser, canManag
         )}
       </Card>
       <div className="mt-5"><ProtoNote /></div>
+      {editingCase && <EditCaseModal theCase={editingCase} onClose={() => setEditingCase(null)} onSave={saveEdit} />}
+      {deletingCase && <DeleteCaseModal theCase={deletingCase} onClose={() => setDeletingCase(null)} onConfirm={confirmDelete} />}
     </div>
   );
 }
