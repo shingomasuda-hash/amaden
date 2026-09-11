@@ -3,10 +3,11 @@ import { C, STATUS, CONF } from "../lib/theme";
 import {
   Upload as UploadIcon, Cpu, Ruler, CheckCircle2, FileSpreadsheet, FileText,
   ChevronLeft, ChevronRight, AlertTriangle, Check, X, ImageIcon, ArrowRight, Info, FolderOpen,
-  ExternalLink, Filter,
+  Filter,
 } from "../lib/icons";
 import { Btn, Card, ConfPill, ProtoNote } from "../components/ui";
 import { STEPS } from "../lib/mockWorkflow";
+import { exportReportExcel, exportReportPdf } from "../lib/exportReport";
 
 export function Stepper({ current, go, maxReached }) {
   const idx = STEPS.findIndex((s) => s.id === current);
@@ -523,7 +524,9 @@ const toPreviewDefaults = (theCase, reviewFields, workRows) => ({
 export function Preview({ theCase, reviewFields, workRows, onNext, onAudit }) {
   // 案件の実データに加え、結果確認・作業内容画面での修正内容があればそれを初期値として反映する（下の欄で自由に修正可能）
   const [previewData, setPreviewData] = useState(() => toPreviewDefaults(theCase, reviewFields, workRows));
+  const [generating, setGenerating] = useState(false);
   const focusValues = useRef({});
+  const printRef = useRef(null); // PDF化用（inputではなく文字として描画した非表示コピー）
   const rows = [{ id: "customer", label: "顧客名" }, { id: "completeDate", label: "作業完了日" }, { id: "ctrl", label: "管理No" }, { id: "owner", label: "担当者" },
     { id: "output", label: "出力" }, { id: "voltage", label: "電圧" }, { id: "pole", label: "極数" }, { id: "note1", label: "特記事項①", long: true }, { id: "note2", label: "特記事項②", long: true }];
   const update = (id, v) => setPreviewData((d) => ({ ...d, [id]: v }));
@@ -532,11 +535,38 @@ export function Preview({ theCase, reviewFields, workRows, onNext, onAudit }) {
     const before = focusValues.current[id], after = previewData[id] || "";
     if (before !== undefined && before !== after) onAudit?.("提出用プレビュー編集", `${theCase?.ctrl || "新規案件"} / ${id}`, before, after);
   };
+  const generate = async () => {
+    if (generating) return;
+    setGenerating(true);
+    try {
+      exportReportExcel(previewData, theCase?.ctrl);
+      await exportReportPdf(printRef.current, theCase?.ctrl);
+      onAudit?.("帳票生成", theCase?.ctrl || "案件", "—", "Excel/PDFをダウンロード");
+      onNext();
+    } catch {
+      window.alert("Excel・PDFの生成に失敗しました。もう一度お試しください。");
+    } finally {
+      setGenerating(false);
+    }
+  };
+  const reportBody = (
+    <>
+      <div className="text-center py-3 border-b" style={{ borderColor: "#cfd6dd", backgroundColor: "#f3f5f7" }}>
+        <div className="text-base font-semibold tracking-widest" style={{ color: "#1f2937" }}>整 備 報 告 書</div>
+      </div>
+      {rows.map((r) => (
+        <div key={r.id} className="flex border-b" style={{ borderColor: "#d9dee4" }}>
+          <div className="w-32 px-2 py-1.5 text-[11px] border-r shrink-0" style={{ borderColor: "#d9dee4", backgroundColor: "#f6f8fa", color: "#64748b" }}>{r.label}</div>
+          <div className="flex-1 px-2 py-1.5 text-[13px]" style={{ minHeight: r.long ? 48 : "auto", whiteSpace: "pre-wrap", color: "#0f172a" }}>{previewData[r.id] || ""}</div>
+        </div>
+      ))}
+    </>
+  );
   return (
     <div className="mx-auto px-8 py-5" style={{ maxWidth: 1000 }}>
       <div className="flex items-center justify-between mb-3">
         <h1 className="text-lg font-semibold" style={{ color: C.ink }}>提出用プレビュー</h1>
-        <Btn variant="primary" icon={FileText} onClick={() => { onAudit?.("帳票生成", theCase?.ctrl || "案件", "—", "Excel/PDF生成"); onNext(); }}>Excel・PDFを生成</Btn>
+        <Btn variant="primary" icon={FileText} onClick={generate} disabled={generating}>{generating ? "生成中…" : "Excel・PDFを生成"}</Btn>
       </div>
       <Card>
         <div className="mx-auto bg-white shadow-sm" style={{ maxWidth: 640, border: "1px solid #cfd6dd" }}>
@@ -557,41 +587,52 @@ export function Preview({ theCase, reviewFields, workRows, onNext, onAudit }) {
           ))}
         </div>
       </Card>
+      {/* PDF化専用の非表示コピー（inputだとhtml2canvasでの描画が不安定なため、確定した文字として描画する） */}
+      <div style={{ position: "fixed", top: 0, left: -9999, width: 640 }} aria-hidden="true">
+        <div ref={printRef} className="bg-white" style={{ border: "1px solid #cfd6dd" }}>{reportBody}</div>
+      </div>
       <div className="mt-4"><ProtoNote /></div>
     </div>
   );
 }
 
-export function Done({ theCase, onHome }) {
+export function Done({ theCase, onHome, toast }) {
+  const nasPath = `¥¥amaden-nas¥整備報告書¥2026¥${theCase?.ctrl}¥`;
+  const copyPath = async () => {
+    try { await navigator.clipboard.writeText(nasPath); toast?.("フォルダパスをコピーしました"); }
+    catch { toast?.(nasPath); }
+  };
   return (
     <div className="mx-auto px-8 py-10" style={{ maxWidth: 820 }}>
       <Card>
         <div className="text-center py-2">
           <div className="w-14 h-14 rounded-full mx-auto flex items-center justify-center mb-3" style={{ backgroundColor: "#d1fae5" }}><CheckCircle2 size={30} style={{ color: "#059669" }} /></div>
-          <div className="text-lg font-semibold" style={{ color: C.ink }}>ファイルを生成しました</div>
+          <div className="text-lg font-semibold" style={{ color: C.ink }}>Excel・PDFをダウンロードしました</div>
           <div className="text-xs font-mono mt-1" style={{ color: C.sub }}>{theCase?.ctrl} ／ {theCase?.customer}</div>
         </div>
         <div className="grid grid-cols-2 gap-3 my-5">
           {[
-            { icon: FileSpreadsheet, c: "#1e7d45", bg: "#e4efe6", t: "Excel作成完了", s: `${theCase?.ctrl}_整備報告書.xlsx` },
-            { icon: FileText, c: "#c0392b", bg: "#fde8e8", t: "PDF作成完了", s: `${theCase?.ctrl}_整備報告書.pdf` },
+            { icon: FileSpreadsheet, c: "#1e7d45", bg: "#e4efe6", t: "Excel", s: `${theCase?.ctrl}_整備報告書.xlsx` },
+            { icon: FileText, c: "#c0392b", bg: "#fde8e8", t: "PDF", s: `${theCase?.ctrl}_整備報告書.pdf` },
           ].map((x, i) => (
             <div key={i} className="rounded-lg border px-4 py-3.5" style={{ borderColor: C.line }}>
               <div className="flex items-center gap-2.5 mb-2">
                 <div className="w-9 h-9 rounded flex items-center justify-center" style={{ backgroundColor: x.bg }}><x.icon size={18} style={{ color: x.c }} /></div>
                 <div>
                   <div className="text-sm font-medium" style={{ color: C.ink }}>{x.t}</div>
-                  <div className="inline-flex items-center gap-1 text-[11px]" style={{ color: "#059669" }}><Check size={11} />完了</div>
+                  <div className="inline-flex items-center gap-1 text-[11px]" style={{ color: "#059669" }}><Check size={11} />ダウンロード済み</div>
                 </div>
               </div>
-              <div className="text-[11px] font-mono mb-2.5 truncate" style={{ color: C.sub }}>{x.s}</div>
-              <Btn size="sm" variant="outline" icon={ExternalLink} disabled>開く（未接続）</Btn>
+              <div className="text-[11px] font-mono truncate" style={{ color: C.sub }}>{x.s}</div>
             </div>
           ))}
         </div>
-        <div className="rounded-lg border px-4 py-3 mb-5 flex items-center justify-between gap-2" style={{ borderColor: C.line, backgroundColor: C.panel }}>
-          <div className="text-[13px] font-mono truncate" style={{ color: C.ink }}>¥¥amaden-nas¥整備報告書¥2026¥{theCase?.ctrl}¥</div>
-          <Btn size="sm" variant="outline" icon={FolderOpen} disabled>フォルダを開く（未接続）</Btn>
+        <div className="rounded-lg border px-4 py-3 mb-5" style={{ borderColor: C.line, backgroundColor: C.panel }}>
+          <div className="text-[11px] mb-1.5" style={{ color: C.sub }}>社内NASへの保存は自動化されていません。ダウンロードしたファイルを下記フォルダへ手動で保存してください。</div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[13px] font-mono truncate" style={{ color: C.ink }}>{nasPath}</div>
+            <Btn size="sm" variant="outline" icon={FolderOpen} onClick={copyPath}>パスをコピー</Btn>
+          </div>
         </div>
         <div className="flex justify-center"><Btn variant="primary" size="lg" icon={ChevronLeft} onClick={onHome}>案件一覧へ戻る</Btn></div>
         <div className="mt-5"><ProtoNote /></div>
