@@ -201,19 +201,23 @@ export function Processing({ theCase, status, error, onDone, onBack }) {
 }
 
 const REVIEW_FILTERS = ["要確認項目のみ", "全項目", "基本情報", "本体仕様", "作業内容", "測定値", "不具合・処置", "固定子コイル巻替"];
-// Claudeの読み取り結果（confごとに status/id を補って画面用の形にする）
+// Claudeの読み取り結果（confごとに status/id を補って画面用の形にする）。
+// APIが期待通りの配列を返さなかった場合（不完全な応答など）でも画面が壊れないよう防御的にガードする。
 export const toReviewFields = (extractedFields) =>
-  (extractedFields || []).map((f, i) => ({
-    id: `f${i}`,
-    grp: f.grp || "その他",
-    label: f.label || "項目",
-    raw: f.raw || "",
-    norm: f.norm ?? f.raw ?? "",
-    unit: f.unit || "",
-    conf: ["high", "mid", "low"].includes(f.conf) ? f.conf : "mid",
-    reason: f.reason || "",
-    status: f.conf === "high" ? "confirmed" : "review",
-  }));
+  (Array.isArray(extractedFields) ? extractedFields : []).map((raw, i) => {
+    const f = raw && typeof raw === "object" ? raw : {};
+    return {
+      id: `f${i}`,
+      grp: f.grp || "その他",
+      label: f.label || "項目",
+      raw: f.raw || "",
+      norm: f.norm ?? f.raw ?? "",
+      unit: f.unit || "",
+      conf: ["high", "mid", "low"].includes(f.conf) ? f.conf : "mid",
+      reason: f.reason || "",
+      status: f.conf === "high" ? "confirmed" : "review",
+    };
+  });
 
 // fields/setFields は App.jsx が所有する状態（この画面での修正を提出プレビューへ連動させるため）
 export function Review({ fields = [], setFields, onNext, onAudit }) {
@@ -348,7 +352,10 @@ export function Review({ fields = [], setFields, onNext, onAudit }) {
 
 // Claudeの読み取り結果（不具合・処置）を画面用の形にする。noteは特記事項欄への転記文面（編集可・初期値は原文）
 export const toDefectRows = (defects) =>
-  (defects || []).map((d, i) => ({ id: `d${i}`, label: d.label || "不具合", raw: d.raw || "", note: d.raw || "" }));
+  (Array.isArray(defects) ? defects : []).map((raw, i) => {
+    const d = raw && typeof raw === "object" ? raw : {};
+    return { id: `d${i}`, label: d.label || "不具合", raw: d.raw || "", note: d.raw || "" };
+  });
 
 // rows/setRows は App.jsx が所有する状態（提出プレビュー画面へ編集内容を連動させるため）
 export function WorkContent({ rows = [], setRows, onNext, onAudit }) {
@@ -408,17 +415,20 @@ export function WorkContent({ rows = [], setRows, onNext, onAudit }) {
 
 // Claudeの読み取り結果（測定値の各行）を画面用の形にする
 export const toMeasRows = (measurements) =>
-  (measurements || []).map((m, i) => ({
-    id: `m${i}`,
-    title: m.title || "測定値",
-    item: m.item || "",
-    mgmt: m.mgmt || "",
-    before: m.before || "",
-    after: m.after || "",
-    unit: m.unit || "",
-    judge: m.judge || "",
-    conf: ["high", "mid", "low"].includes(m.conf) ? m.conf : "mid",
-  }));
+  (Array.isArray(measurements) ? measurements : []).map((raw, i) => {
+    const m = raw && typeof raw === "object" ? raw : {};
+    return {
+      id: `m${i}`,
+      title: m.title || "測定値",
+      item: m.item || "",
+      mgmt: m.mgmt || "",
+      before: m.before || "",
+      after: m.after || "",
+      unit: m.unit || "",
+      judge: m.judge || "",
+      conf: ["high", "mid", "low"].includes(m.conf) ? m.conf : "mid",
+    };
+  });
 
 // rows/setRows は App.jsx が所有する状態（提出プレビュー画面へ編集内容を連動させるため）
 export function Measurements({ rows = [], setRows, onNext, onAudit }) {

@@ -160,9 +160,9 @@ export default async function handler(req, res) {
     }
 
     const result = {
-      fields: fieldsTool.input.fields || [],
-      defects: defMeasTool.input.defects || [],
-      measurements: defMeasTool.input.measurements || [],
+      fields: Array.isArray(fieldsTool.input.fields) ? fieldsTool.input.fields : [],
+      defects: Array.isArray(defMeasTool.input.defects) ? defMeasTool.input.defects : [],
+      measurements: Array.isArray(defMeasTool.input.measurements) ? defMeasTool.input.measurements : [],
     };
     const cost = estimateCost(sumUsage(fieldsMsg.usage, defMeasMsg.usage));
     // max_tokensで打ち切られた場合、fields/measurements等が途中までしか入っていない可能性がある
