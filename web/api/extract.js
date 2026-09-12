@@ -131,8 +131,8 @@ export default async function handler(req, res) {
     const [fieldsMsg, defMeasMsg] = await Promise.all([
       client.messages.create({
         model: MODEL,
-        max_tokens: 6000,
-        thinking: { type: "disabled" },
+        max_tokens: 12000, // 6000だと基本情報だけでも上限に達して打ち切られることがあったため引き上げ
+        thinking: { type: "disabled" }, // 単純な項目一覧の読み取りなので速度優先
         system: [...baseSystem(customer, ctrl), "今回は「基本情報・本体仕様・目視/触診調査結果」など、測定値の表以外の項目一覧のみを読み取ってください。"].join("\n"),
         tools: [FIELDS_TOOL],
         tool_choice: { type: "tool", name: "submit_fields" },
@@ -140,8 +140,9 @@ export default async function handler(req, res) {
       }),
       client.messages.create({
         model: MODEL,
-        max_tokens: 16000,
-        thinking: { type: "disabled" },
+        max_tokens: 20000,
+        // 測定値の表は複雑で読み取りに丁寧な確認が要るため、こちらは推論(thinking)を有効のままにする
+        // （推論を無効化すると、上限には達していないのに結果が空になる事例が確認されたため）
         system: [...baseSystem(customer, ctrl), "今回は「不具合・処置」と「測定値」のみを読み取ってください。測定値は、記入がある表・行を1件も漏らさず、最後のページまで抽出してください（空欄の表・行は無視してよい）。"].join("\n"),
         tools: [DEFECTS_MEASUREMENTS_TOOL],
         tool_choice: { type: "tool", name: "submit_defects_measurements" },
