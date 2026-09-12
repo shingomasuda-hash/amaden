@@ -65,9 +65,9 @@ const FIELDS_TOOL = {
   },
 };
 
-const DEFECTS_MEASUREMENTS_TOOL = {
-  name: "submit_defects_measurements",
-  description: "分解整備成績書（手書きPDF）から読み取った不具合・処置と、測定値の各行を提出する",
+const DEFECTS_TOOL = {
+  name: "submit_defects",
+  description: "分解整備成績書（手書きPDF）から読み取った不具合・処置を提出する",
   input_schema: {
     type: "object",
     properties: {
@@ -83,6 +83,17 @@ const DEFECTS_MEASUREMENTS_TOOL = {
           required: ["label", "raw"],
         },
       },
+    },
+    required: ["defects"],
+  },
+};
+
+const MEASUREMENTS_TOOL = {
+  name: "submit_measurements",
+  description: "分解整備成績書（手書きPDF）から読み取った測定値の各行を提出する",
+  input_schema: {
+    type: "object",
+    properties: {
       measurements: {
         type: "array",
         description: "測定値の各行。次のような表を想定し、記入がある表はすべて対象（複数ページにまたがることが多い）: 巻線抵抗値計測／絶縁抵抗値計測／軸ブレ測定／シャフトジャーナル部寸法測定／ブラケットハウジング部寸法測定／シャフト外径とカップリング内径の嵌め合い寸法測定／カーボンブラシの詳細／回転試験／温度試験／振動試験。",
@@ -102,7 +113,7 @@ const DEFECTS_MEASUREMENTS_TOOL = {
         },
       },
     },
-    required: ["defects", "measurements"],
+    required: ["measurements"],
   },
 };
 
@@ -128,7 +139,7 @@ export default async function handler(req, res) {
   const documentBlock = { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } };
 
   try {
-    const [fieldsMsg, defMeasMsg] = await Promise.all([
+    const [fieldsMsg, defectsMsg, measMsg] = await Promise.all([
       client.messages.create({
         model: MODEL,
         max_tokens: 12000, // 6000だと基本情報だけでも上限に達して打ち切られることがあったため引き上げ
@@ -140,24 +151,34 @@ export default async function handler(req, res) {
       }),
       client.messages.create({
         model: MODEL,
+        max_tokens: 8000,
+        thinking: { type: "disabled" },
+        system: [...baseSystem(customer, ctrl), "今回は「不具合・処置」（特記事項欄などの記載）のみを読み取ってください。"].join("\n"),
+        tools: [DEFECTS_TOOL],
+        tool_choice: { type: "tool", name: "submit_defects" },
+        messages: [{ role: "user", content: [documentBlock, { type: "text", text: "この分解整備成績書PDFの不具合・処置を読み取り、submit_defects ツールで結果を提出してください。" }] }],
+      }),
+      client.messages.create({
+        model: MODEL,
         max_tokens: 20000,
         // 測定値の表は複雑で読み取りに丁寧な確認が要るため、こちらは推論(thinking)を有効のままにする
-        // （推論を無効化すると、上限には達していないのに結果が空になる事例が確認されたため）
-        system: [...baseSystem(customer, ctrl), "今回は「不具合・処置」と「測定値」のみを読み取ってください。測定値は、記入がある表・行を1件も漏らさず、最後のページまで抽出してください（空欄の表・行は無視してよい）。"].join("\n"),
-        tools: [DEFECTS_MEASUREMENTS_TOOL],
-        tool_choice: { type: "tool", name: "submit_defects_measurements" },
-        messages: [{ role: "user", content: [documentBlock, { type: "text", text: "この分解整備成績書PDFの不具合・処置と測定値を読み取り、submit_defects_measurements ツールで結果を提出してください。" }] }],
+        system: [...baseSystem(customer, ctrl), "今回は「測定値」のみを読み取ってください。記入がある表・行を1件も漏らさず、最後のページまで抽出してください（空欄の表・行は無視してよい）。"].join("\n"),
+        tools: [MEASUREMENTS_TOOL],
+        tool_choice: { type: "tool", name: "submit_measurements" },
+        messages: [{ role: "user", content: [documentBlock, { type: "text", text: "この分解整備成績書PDFの測定値を読み取り、submit_measurements ツールで結果を提出してください。" }] }],
       }),
     ]);
 
     const fieldsTool = fieldsMsg.content.find((b) => b.type === "tool_use");
-    const defMeasTool = defMeasMsg.content.find((b) => b.type === "tool_use");
-    console.log("[extract] fields:", { stop: fieldsMsg.stop_reason, usage: fieldsMsg.usage, hasTool: !!fieldsTool, contentTypes: fieldsMsg.content.map((b) => b.type) });
-    console.log("[extract] defects/measurements:", { stop: defMeasMsg.stop_reason, usage: defMeasMsg.usage, hasTool: !!defMeasTool, contentTypes: defMeasMsg.content.map((b) => b.type) });
+    const defectsTool = defectsMsg.content.find((b) => b.type === "tool_use");
+    const measTool = measMsg.content.find((b) => b.type === "tool_use");
+    console.log("[extract] fields:", { stop: fieldsMsg.stop_reason, usage: fieldsMsg.usage, hasTool: !!fieldsTool });
+    console.log("[extract] defects:", { stop: defectsMsg.stop_reason, usage: defectsMsg.usage, hasTool: !!defectsTool });
+    console.log("[extract] measurements:", { stop: measMsg.stop_reason, usage: measMsg.usage, hasTool: !!measTool });
 
-    if (!fieldsTool || !defMeasTool) {
+    if (!fieldsTool || !defectsTool || !measTool) {
       // 出力上限に達して構造化データを最後まで生成できなかった場合もここに来ることがある
-      const anyTruncated = fieldsMsg.stop_reason === "max_tokens" || defMeasMsg.stop_reason === "max_tokens";
+      const anyTruncated = [fieldsMsg, defectsMsg, measMsg].some((m) => m.stop_reason === "max_tokens");
       const reason = anyTruncated ? "（出力量が多く、上限に達しました）" : "";
       res.status(502).json({ error: `モデルが構造化データを返しませんでした${reason}。もう一度お試しください。` });
       return;
@@ -165,30 +186,27 @@ export default async function handler(req, res) {
 
     const result = {
       fields: Array.isArray(fieldsTool.input.fields) ? fieldsTool.input.fields : [],
-      defects: Array.isArray(defMeasTool.input.defects) ? defMeasTool.input.defects : [],
-      measurements: Array.isArray(defMeasTool.input.measurements) ? defMeasTool.input.measurements : [],
+      defects: Array.isArray(defectsTool.input.defects) ? defectsTool.input.defects : [],
+      measurements: Array.isArray(measTool.input.measurements) ? measTool.input.measurements : [],
     };
     console.log("[extract] 件数:", { fields: result.fields.length, defects: result.defects.length, measurements: result.measurements.length });
 
-    // ツール呼び出し自体は成功したのに項目が0件、というのは今回のPDFでは本来あり得ない
+    // ツール呼び出し自体は成功したのに全項目が0件、というのは今回のPDFでは本来あり得ない
     // （実データが存在するため）。原因調査用に、通常のエラーとして診断情報つきで返す。
-    const allEmpty = result.fields.length === 0 && result.defects.length === 0 && result.measurements.length === 0;
-    const defMeasEmpty = result.defects.length === 0 && result.measurements.length === 0;
-    if (allEmpty || defMeasEmpty) {
-      const defMeasTexts = defMeasMsg.content.filter((b) => b.type === "text").map((b) => b.text).join(" / ");
-      console.error("[extract] 結果が空でした", {
-        fieldsStop: fieldsMsg.stop_reason, fieldsUsage: fieldsMsg.usage, fieldsCount: result.fields.length,
-        defMeasStop: defMeasMsg.stop_reason, defMeasUsage: defMeasMsg.usage, defMeasTexts,
+    if (result.fields.length === 0 && result.defects.length === 0 && result.measurements.length === 0) {
+      const measTexts = measMsg.content.filter((b) => b.type === "text").map((b) => b.text).join(" / ");
+      console.error("[extract] 全項目が空でした", {
+        fieldsStop: fieldsMsg.stop_reason, defectsStop: defectsMsg.stop_reason, measStop: measMsg.stop_reason, measTexts,
       });
       res.status(502).json({
-        error: `読み取り結果が空でした（診断情報: fields件数=${result.fields.length}/停止理由=${fieldsMsg.stop_reason}, 不具合・測定値停止理由=${defMeasMsg.stop_reason}${defMeasTexts ? `, モデルの発言=${defMeasTexts.slice(0, 200)}` : ""}）。もう一度お試しいただくか、この画面をスクリーンショットして共有してください。`,
+        error: `読み取り結果が空でした（診断情報: fields停止理由=${fieldsMsg.stop_reason}, 不具合停止理由=${defectsMsg.stop_reason}, 測定値停止理由=${measMsg.stop_reason}${measTexts ? `, モデルの発言=${measTexts.slice(0, 200)}` : ""}）。もう一度お試しいただくか、この画面をスクリーンショットして共有してください。`,
       });
       return;
     }
 
-    const cost = estimateCost(sumUsage(fieldsMsg.usage, defMeasMsg.usage));
-    // max_tokensで打ち切られた場合、fields/measurements等が途中までしか入っていない可能性がある
-    const truncated = fieldsMsg.stop_reason === "max_tokens" || defMeasMsg.stop_reason === "max_tokens";
+    const cost = estimateCost(sumUsage(fieldsMsg.usage, defectsMsg.usage, measMsg.usage));
+    // max_tokensで打ち切られた場合、いずれかの項目が途中までしか入っていない可能性がある
+    const truncated = [fieldsMsg, defectsMsg, measMsg].some((m) => m.stop_reason === "max_tokens");
     res.status(200).json({ result, cost, model: MODEL, truncated });
   } catch (e) {
     console.error("[extract] エラー:", e);
