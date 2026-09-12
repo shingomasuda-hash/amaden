@@ -153,11 +153,11 @@ function StaffApp() {
       if (truncated) {
         toast("読み取り結果が多く、AIの出力上限に達した可能性があります。各画面の内容を漏れなくご確認ください。");
       } else if (warnings?.defectsEmpty && warnings?.measurementsEmpty) {
-        toast("不具合・測定値が0件でした。PDFに記載がある場合は読み取り漏れの可能性があるので、再度お試しください。");
+        toast(`不具合・測定値が0件でした。PDFに記載がある場合は読み取り漏れの可能性があるので、再度お試しください。${warnings.defectsNote || warnings.measurementsNote ? `（AIの発言: ${(warnings.defectsNote || warnings.measurementsNote).slice(0, 120)}）` : ""}`);
       } else if (warnings?.defectsEmpty) {
-        toast("不具合・処置が0件でした。PDFに記載がある場合は読み取り漏れの可能性があります。");
+        toast(`不具合・処置が0件でした。PDFに記載がある場合は読み取り漏れの可能性があります。${warnings.defectsNote ? `（AIの発言: ${warnings.defectsNote.slice(0, 120)}）` : ""}`);
       } else if (warnings?.measurementsEmpty) {
-        toast("測定値が0件でした。PDFに記載がある場合は読み取り漏れの可能性があります。");
+        toast(`測定値が0件でした。PDFに記載がある場合は読み取り漏れの可能性があります。${warnings.measurementsNote ? `（AIの発言: ${warnings.measurementsNote.slice(0, 120)}）` : ""}`);
       }
     } catch (e) {
       setExtractError(e?.message || "読み取りに失敗しました");

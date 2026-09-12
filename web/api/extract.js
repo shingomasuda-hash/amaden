@@ -73,12 +73,19 @@ const DEFECTS_TOOL = {
     properties: {
       defects: {
         type: "array",
-        description: "不具合・処置に関する記載。特に「通常分解整備以外の不良個所および懸念箇所」という表（箇所／症状／推奨作業などの列を持つ）に記入がある行は必ず拾う。ほかに特記事項欄・コメント欄などに記載があればそれも対象。表のタイトルが多少違っても、不具合・症状・処置内容が書かれている箇所は幅広く対象にする。無ければ空配列。",
+        description: [
+          "不具合・処置に関する記載。「通常分解整備以外の不良個所および懸念箇所」という表に、①②③...のように番号付きで記入されている行は必ずすべて拾う。",
+          "この表は次のような列を持つ：箇所／症状（詳細を記載）／推奨作業【必要な処置、数量、資材など記載】／施工範疇／作業完了。「例」という見本行（口出し線3本/6本中...）は対象外、番号①以降の実際の記入行のみが対象。",
+          "具体例（実際に読み取った表のイメージ）：",
+          "①の行に「箇所=ロータ軸(D)ベアリング下」「症状=摩耗」「推奨作業=溶射加工」と書かれていたら → { label: \"①ロータ軸(D)ベアリング下\", raw: \"症状：摩耗／推奨作業：溶射加工\" } のように1件として提出する。",
+          "②③④も同様に、番号が振られていて箇所・症状・推奨作業のいずれかに記入がある行はすべて1件ずつ提出する（空欄の番号行は無視してよい）。",
+          "ほかに特記事項欄・コメント欄などに記載があればそれも対象。無ければ空配列。",
+        ].join("\n"),
         items: {
           type: "object",
           properties: {
-            label: { type: "string", description: "見出し（例: ①ローター軸(D)ベアリング下 のように箇所名や番号）" },
-            raw: { type: "string", description: "その行の症状・推奨作業などの手書き原文をまとめたもの" },
+            label: { type: "string", description: "見出し（例: ①ロータ軸(D)ベアリング下 のように番号と箇所名）" },
+            raw: { type: "string", description: "その行の症状・推奨作業をまとめたもの（例: 症状：摩耗／推奨作業：溶射加工）" },
           },
           required: ["label", "raw"],
         },
@@ -153,7 +160,13 @@ export default async function handler(req, res) {
         model: MODEL,
         max_tokens: 12000,
         // 該当箇所は手書きの丸印・二重線・訂正などが混ざり読み取りが難しいため、こちらも推論(thinking)を有効のままにする
-        system: [...baseSystem(customer, ctrl), "今回は「不具合・処置」のみを読み取ってください。「通常分解整備以外の不良個所および懸念箇所」という表（箇所／症状／推奨作業などの列）は特に見落としやすいので必ず確認し、記入がある行はすべて拾ってください。特記事項欄・コメント欄に記載があればそれも対象です。"].join("\n"),
+        system: [
+          ...baseSystem(customer, ctrl),
+          "今回は「不具合・処置」のみを読み取ってください。",
+          "特に「通常分解整備以外の不良個所および懸念箇所」という表（①②③...と番号が振られ、箇所／症状／推奨作業の列を持つ）は、番号ごとに1行ずつ、記入がある行をすべて拾ってください。番号だけ振られていて中身が空欄の行は無視してください。",
+          "手書きの箇所名（例: ロータ軸(D)ベアリング下、ブラケット(B) など）や、症状（例: 摩耗、ギヤー条痕）、推奨作業（例: 溶射加工、ブッシュ加工、切削加工）は、多少崩した字でも実在する専門用語なのでできる限り読み取ってください。読めた範囲だけでも1件として提出し、全く読めない場合のみ省略してください。",
+          "ほかに特記事項欄・コメント欄に記載があればそれも対象です。",
+        ].join("\n"),
         tools: [DEFECTS_TOOL],
         tool_choice: { type: "tool", name: "submit_defects" },
         messages: [{ role: "user", content: [documentBlock, { type: "text", text: "この分解整備成績書PDFの不具合・処置を読み取り、submit_defects ツールで結果を提出してください。" }] }],
@@ -189,14 +202,21 @@ export default async function handler(req, res) {
       defects: Array.isArray(defectsTool.input.defects) ? defectsTool.input.defects : [],
       measurements: Array.isArray(measTool.input.measurements) ? measTool.input.measurements : [],
     };
+    // 各呼び出しがツール以外にテキストを残していないか（言い訳・説明・拒否など）は毎回記録しておく。
+    // 0件だった時にその場で理由が分かるよう、サーバーログだけでなく画面側にも渡す。
+    const textOf = (m) => m.content.filter((b) => b.type === "text").map((b) => b.text).join(" / ");
+    const fieldsTexts = textOf(fieldsMsg), defectsTexts = textOf(defectsMsg), measTexts = textOf(measMsg);
     console.log("[extract] 件数:", { fields: result.fields.length, defects: result.defects.length, measurements: result.measurements.length });
+    if (fieldsTexts || defectsTexts || measTexts) {
+      console.log("[extract] モデルの発言:", { fieldsTexts, defectsTexts, measTexts });
+    }
 
     // ツール呼び出し自体は成功したのに全項目が0件、というのは今回のPDFでは本来あり得ない
     // （実データが存在するため）。原因調査用に、通常のエラーとして診断情報つきで返す。
     if (result.fields.length === 0 && result.defects.length === 0 && result.measurements.length === 0) {
-      const measTexts = measMsg.content.filter((b) => b.type === "text").map((b) => b.text).join(" / ");
       console.error("[extract] 全項目が空でした", {
-        fieldsStop: fieldsMsg.stop_reason, defectsStop: defectsMsg.stop_reason, measStop: measMsg.stop_reason, measTexts,
+        fieldsStop: fieldsMsg.stop_reason, defectsStop: defectsMsg.stop_reason, measStop: measMsg.stop_reason,
+        fieldsTexts, defectsTexts, measTexts,
       });
       res.status(502).json({
         error: `読み取り結果が空でした（診断情報: fields停止理由=${fieldsMsg.stop_reason}, 不具合停止理由=${defectsMsg.stop_reason}, 測定値停止理由=${measMsg.stop_reason}${measTexts ? `, モデルの発言=${measTexts.slice(0, 200)}` : ""}）。もう一度お試しいただくか、この画面をスクリーンショットして共有してください。`,
@@ -208,10 +228,11 @@ export default async function handler(req, res) {
     // max_tokensで打ち切られた場合、いずれかの項目が途中までしか入っていない可能性がある
     const truncated = [fieldsMsg, defectsMsg, measMsg].some((m) => m.stop_reason === "max_tokens");
     // 不具合・測定値が0件の場合は、本当に記載が無いのか読み取り漏れなのか画面側では判断できないため、
-    // 一覧確認を促す注意フラグとして返す（エラーにはせず処理は続行する）
+    // 一覧確認を促す注意フラグとして返す（エラーにはせず処理は続行する）。診断用にモデルの発言も添える。
     const warnings = {};
-    if (result.defects.length === 0) warnings.defectsEmpty = true;
-    if (result.measurements.length === 0) warnings.measurementsEmpty = true;
+    if (result.defects.length === 0) { warnings.defectsEmpty = true; if (defectsTexts) warnings.defectsNote = defectsTexts.slice(0, 300); }
+    if (result.measurements.length === 0) { warnings.measurementsEmpty = true; if (measTexts) warnings.measurementsNote = measTexts.slice(0, 300); }
+    console.log("[extract] 完了", { truncated, warnings });
     res.status(200).json({ result, cost, model: MODEL, truncated, warnings });
   } catch (e) {
     console.error("[extract] エラー:", e);
