@@ -682,11 +682,11 @@ export function Done({ theCase, previewData, reviewFields, workRows, measRows, o
   const printRef = useRef(null); // PDF化用（確定した文字として描画した非表示コピー）
   const nasPath = `¥¥amaden-nas¥整備報告書¥2026¥${theCase?.ctrl}¥`;
 
-  const downloadExcel = () => {
+  const downloadExcel = async () => {
     if (genExcel) return;
     setGenExcel(true);
     try {
-      exportReportExcel(previewData, theCase?.ctrl, reviewFields, workRows, measRows);
+      await exportReportExcel(previewData, theCase?.ctrl, reviewFields, workRows, measRows);
       onAudit?.("帳票生成", theCase?.ctrl || "案件", "—", "Excelをダウンロード");
       setGotExcel(true);
     } catch {
