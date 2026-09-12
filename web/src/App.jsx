@@ -116,10 +116,13 @@ function StaffApp() {
     pushSystemNote(c, `${currentUser.name} が案件を開きました（${STEPS.find((s) => s.id === at)?.name || at}）。`);
   };
 
-  const newCase = async () => {
+  const newCase = async (fields) => {
     const ctrl = `26MT${Math.floor(1000 + Math.random() * 9000)}`;
     try {
-      const created = await createCase({ ctrl, customer: "新規案件（顧客名未設定）", kind: "交流", rewind: false, spec: "", owner: currentUser.name });
+      const created = await createCase({
+        ctrl, customer: fields?.customer || "新規案件（顧客名未設定）",
+        kind: fields?.kind || "交流", rewind: !!fields?.rewind, spec: fields?.spec || "", owner: currentUser.name,
+      });
       await logActivity(currentUser.name, "案件登録", ctrl, "—", created.customer);
       setActiveCase(created);
       resetExtraction();

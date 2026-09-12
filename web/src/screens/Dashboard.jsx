@@ -53,6 +53,56 @@ function EditCaseModal({ theCase, onClose, onSave }) {
   );
 }
 
+function NewCaseModal({ onClose, onCreate }) {
+  const [customer, setCustomer] = useState("");
+  const [kind, setKind] = useState("交流");
+  const [rewind, setRewind] = useState(false);
+  const [spec, setSpec] = useState("");
+  const [saving, setSaving] = useState(false);
+  const create = async () => {
+    if (!customer.trim() || saving) return;
+    setSaving(true);
+    try { await onCreate({ customer: customer.trim(), kind, rewind, spec }); } finally { setSaving(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ backgroundColor: "rgba(15,23,42,.4)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full bg-white rounded-lg border p-5" style={{ maxWidth: 440, borderColor: C.line }}>
+        <div className="text-sm font-semibold mb-4" style={{ color: C.ink }}>新規案件登録</div>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs block mb-1" style={{ color: C.sub }}>顧客名（案件名）</label>
+            <input autoFocus value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="例：田中電機株式会社"
+              onKeyDown={(e) => { if (e.key === "Enter") create(); }}
+              className="w-full rounded border px-2.5 py-1.5 text-sm" style={{ borderColor: C.line2, color: C.ink }} />
+          </div>
+          <div className="flex items-end gap-4">
+            <div>
+              <label className="text-xs block mb-1" style={{ color: C.sub }}>モーター種別</label>
+              <select value={kind} onChange={(e) => setKind(e.target.value)}
+                className="rounded border px-2.5 py-1.5 text-sm" style={{ borderColor: C.line2, color: C.ink }}>
+                <option value="交流">交流</option>
+                <option value="直流">直流</option>
+              </select>
+            </div>
+            <label className="flex items-center gap-1.5 text-sm py-1.5 cursor-pointer" style={{ color: C.ink }}>
+              <input type="checkbox" checked={rewind} onChange={(e) => setRewind(e.target.checked)} />巻替
+            </label>
+          </div>
+          <div>
+            <label className="text-xs block mb-1" style={{ color: C.sub }}>仕様・補足<span className="ml-1" style={{ color: C.sub }}>（任意）</span></label>
+            <input value={spec} onChange={(e) => setSpec(e.target.value)}
+              className="w-full rounded border px-2.5 py-1.5 text-sm" style={{ borderColor: C.line2, color: C.ink }} />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-5">
+          <Btn variant="outline" onClick={onClose}>キャンセル</Btn>
+          <Btn variant="primary" onClick={create} disabled={saving || !customer.trim()}>{saving ? "登録中…" : "登録してアップロードへ"}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DeleteCaseModal({ theCase, onClose, onConfirm }) {
   const [deleting, setDeleting] = useState(false);
   const run = async () => {
@@ -85,9 +135,22 @@ export function Dashboard({ cases, profiles, threadCounts, currentUser, canManag
   const [month, setMonth] = useState("all");
   const [editingCase, setEditingCase] = useState(null);
   const [deletingCase, setDeletingCase] = useState(null);
+  const [showNewCase, setShowNewCase] = useState(false);
+  const [sortDir, setSortDir] = useState("desc"); // desc=新しい順, asc=古い順
   const owners = profiles.filter((p) => p.status === "有効" && p.role !== "pending").map((p) => p.name);
 
-  const filtered = month === "all" ? cases : cases.filter((c) => (c.caseDate || "").slice(0, 7) === month);
+  // created_at（Firestoreサーバータイムスタンプ）を優先し、書き込み直後でまだ反映されていない場合は
+  // caseDate（YYYY-MM-DD）でフォールバックする
+  const toMillis = (c) => {
+    if (c.created_at?.toMillis) return c.created_at.toMillis();
+    if (c.caseDate) return new Date(c.caseDate).getTime();
+    return 0;
+  };
+  const filtered = useMemo(() => {
+    const list = month === "all" ? cases : cases.filter((c) => (c.caseDate || "").slice(0, 7) === month);
+    return [...list].sort((a, b) => (sortDir === "desc" ? toMillis(b) - toMillis(a) : toMillis(a) - toMillis(b)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cases, month, sortDir]);
   const count = (k) => filtered.filter((c) => c.status === k).length;
   const monthLabel = (m) => (m === "all" ? "全期間" : `${m.slice(0, 4)}年${Number(m.slice(5, 7))}月`);
 
@@ -114,6 +177,11 @@ export function Dashboard({ cases, profiles, threadCounts, currentUser, canManag
     setDeletingCase(null);
   };
 
+  const createNewCase = async (fields) => {
+    await onNewCase(fields);
+    setShowNewCase(false);
+  };
+
   return (
     <div className="mx-auto px-8 py-6" style={{ maxWidth: 1440 }}>
       <div className="flex items-center justify-between mb-5">
@@ -131,7 +199,7 @@ export function Dashboard({ cases, profiles, threadCounts, currentUser, canManag
             </select>
           </div>
           {isAdmin && <Btn variant="outline" size="lg" icon={ShieldCheck} onClick={onAdmin}>管理者画面</Btn>}
-          {canManage && <Btn variant="primary" size="lg" icon={Plus} onClick={onNewCase}>新規案件登録</Btn>}
+          {canManage && <Btn variant="primary" size="lg" icon={Plus} onClick={() => setShowNewCase(true)}>新規案件登録</Btn>}
         </div>
       </div>
 
@@ -156,7 +224,15 @@ export function Dashboard({ cases, profiles, threadCounts, currentUser, canManag
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left" style={{ color: C.sub, backgroundColor: C.panel }}>
-              {["管理番号", "顧客名", "モーター種別", "処理状況", "登録日", "担当者", "先方とのやり取り", "操作"].map((h) => (
+              {["管理番号", "顧客名", "モーター種別", "処理状況"].map((h) => (
+                <th key={h} className="px-5 py-2.5 font-medium text-xs">{h}</th>
+              ))}
+              <th className="px-5 py-2.5 font-medium text-xs">
+                <button onClick={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))} className="flex items-center gap-1 hover:text-slate-700">
+                  登録日<span style={{ fontSize: 10 }}>{sortDir === "desc" ? "▼" : "▲"}</span>
+                </button>
+              </th>
+              {["担当者", "先方とのやり取り", "操作"].map((h) => (
                 <th key={h} className="px-5 py-2.5 font-medium text-xs">{h}</th>
               ))}
             </tr>
@@ -227,6 +303,7 @@ export function Dashboard({ cases, profiles, threadCounts, currentUser, canManag
         )}
       </Card>
       <div className="mt-5"><ProtoNote /></div>
+      {showNewCase && <NewCaseModal onClose={() => setShowNewCase(false)} onCreate={createNewCase} />}
       {editingCase && <EditCaseModal theCase={editingCase} onClose={() => setEditingCase(null)} onSave={saveEdit} />}
       {deletingCase && <DeleteCaseModal theCase={deletingCase} onClose={() => setDeletingCase(null)} onConfirm={confirmDelete} />}
     </div>
