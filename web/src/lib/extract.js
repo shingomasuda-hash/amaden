@@ -38,5 +38,6 @@ export async function extractCase(file, { customer, ctrl } = {}) {
   // result: { fields: [...], defects: [...], measurements: [...] }
   // cost: { usd, jpyEstimate, inputTok, outputTok }（概算）
   // truncated: true の場合、出力上限に達し内容が途中までしか読み取れていない可能性がある
-  return { result: body.result, cost: body.cost, model: body.model, truncated: !!body.truncated };
+  // warnings: { defectsEmpty, measurementsEmpty } — 0件だった場合の注意フラグ（記載が無い場合もあるためエラーにはしない）
+  return { result: body.result, cost: body.cost, model: body.model, truncated: !!body.truncated, warnings: body.warnings || {} };
 }

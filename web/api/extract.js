@@ -73,12 +73,12 @@ const DEFECTS_TOOL = {
     properties: {
       defects: {
         type: "array",
-        description: "不具合・処置の記載（特記事項欄など）。無ければ空配列。",
+        description: "不具合・処置に関する記載。特に「通常分解整備以外の不良個所および懸念箇所」という表（箇所／症状／推奨作業などの列を持つ）に記入がある行は必ず拾う。ほかに特記事項欄・コメント欄などに記載があればそれも対象。表のタイトルが多少違っても、不具合・症状・処置内容が書かれている箇所は幅広く対象にする。無ければ空配列。",
         items: {
           type: "object",
           properties: {
-            label: { type: "string", description: "見出し（例: 不良個所① ローター軸(D)）" },
-            raw: { type: "string", description: "手書き原文" },
+            label: { type: "string", description: "見出し（例: ①ローター軸(D)ベアリング下 のように箇所名や番号）" },
+            raw: { type: "string", description: "その行の症状・推奨作業などの手書き原文をまとめたもの" },
           },
           required: ["label", "raw"],
         },
@@ -153,7 +153,7 @@ export default async function handler(req, res) {
         model: MODEL,
         max_tokens: 8000,
         thinking: { type: "disabled" },
-        system: [...baseSystem(customer, ctrl), "今回は「不具合・処置」（特記事項欄などの記載）のみを読み取ってください。"].join("\n"),
+        system: [...baseSystem(customer, ctrl), "今回は「不具合・処置」のみを読み取ってください。「通常分解整備以外の不良個所および懸念箇所」という表（箇所／症状／推奨作業などの列）は特に見落としやすいので必ず確認し、記入がある行はすべて拾ってください。特記事項欄・コメント欄に記載があればそれも対象です。"].join("\n"),
         tools: [DEFECTS_TOOL],
         tool_choice: { type: "tool", name: "submit_defects" },
         messages: [{ role: "user", content: [documentBlock, { type: "text", text: "この分解整備成績書PDFの不具合・処置を読み取り、submit_defects ツールで結果を提出してください。" }] }],
@@ -207,7 +207,12 @@ export default async function handler(req, res) {
     const cost = estimateCost(sumUsage(fieldsMsg.usage, defectsMsg.usage, measMsg.usage));
     // max_tokensで打ち切られた場合、いずれかの項目が途中までしか入っていない可能性がある
     const truncated = [fieldsMsg, defectsMsg, measMsg].some((m) => m.stop_reason === "max_tokens");
-    res.status(200).json({ result, cost, model: MODEL, truncated });
+    // 不具合・測定値が0件の場合は、本当に記載が無いのか読み取り漏れなのか画面側では判断できないため、
+    // 一覧確認を促す注意フラグとして返す（エラーにはせず処理は続行する）
+    const warnings = {};
+    if (result.defects.length === 0) warnings.defectsEmpty = true;
+    if (result.measurements.length === 0) warnings.measurementsEmpty = true;
+    res.status(200).json({ result, cost, model: MODEL, truncated, warnings });
   } catch (e) {
     console.error("[extract] エラー:", e);
     res.status(500).json({ error: e?.message || "読み取りに失敗しました" });
