@@ -59,25 +59,38 @@ export function exportReportExcel(previewData, ctrl, reviewFields, workRows, mea
 export async function exportReportPdf(reportEl, ctrl) {
   if (!reportEl) throw new Error("プレビュー要素が見つかりません");
   const canvas = await html2canvas(reportEl, { scale: 2, backgroundColor: "#ffffff" });
-  const imgData = canvas.toDataURL("image/png");
 
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
   const margin = 10;
-  const imgWidth = pageWidth - margin * 2;
-  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+  const contentWidthMm = pageWidth - margin * 2;
+  const contentHeightMm = pageHeight - margin * 2;
 
-  let heightLeft = imgHeight;
-  let position = margin;
-  pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight);
-  heightLeft -= pageHeight - margin * 2;
+  // canvas上のpx ⇔ PDF上のmm の換算比（幅基準）
+  const pxPerMm = canvas.width / contentWidthMm;
+  const pageHeightPx = Math.max(1, Math.floor(contentHeightMm * pxPerMm)); // 1ページ分に収まるcanvas上の高さ(px)
 
-  while (heightLeft > 0) {
-    position = heightLeft - imgHeight + margin;
-    pdf.addPage();
-    pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight - margin * 2;
+  // 元画像を、ページに収まる高さごとに別々のcanvasへ完全に切り出してから貼り付ける。
+  // jsPDFの座標をずらして重ねて描く方式(addImageを毎ページ同じ画像で位置だけ変える)は、
+  // ページ境界の余白をjsPDFがクリップしてくれない場合があり、前後のページで内容が
+  // 重複して表示される不具合があったため、この方式に変更した。
+  let renderedPx = 0;
+  let first = true;
+  while (renderedPx < canvas.height) {
+    const sliceHeightPx = Math.min(pageHeightPx, canvas.height - renderedPx);
+    const sliceCanvas = document.createElement("canvas");
+    sliceCanvas.width = canvas.width;
+    sliceCanvas.height = sliceHeightPx;
+    const ctx = sliceCanvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+    ctx.drawImage(canvas, 0, renderedPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+
+    if (!first) pdf.addPage();
+    pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", margin, margin, contentWidthMm, sliceHeightPx / pxPerMm);
+    first = false;
+    renderedPx += sliceHeightPx;
   }
 
   pdf.save(`${ctrl || "整備報告書"}_整備報告書.pdf`);
