@@ -675,23 +675,37 @@ export function Preview({ theCase, previewData, setPreviewData, reviewFields, wo
 }
 
 export function Done({ theCase, previewData, reviewFields, workRows, measRows, onHome, onAudit, toast }) {
-  const [generating, setGenerating] = useState(false);
-  const [downloaded, setDownloaded] = useState(false);
+  const [genExcel, setGenExcel] = useState(false);
+  const [genPdf, setGenPdf] = useState(false);
+  const [gotExcel, setGotExcel] = useState(false);
+  const [gotPdf, setGotPdf] = useState(false);
   const printRef = useRef(null); // PDF化用（確定した文字として描画した非表示コピー）
   const nasPath = `¥¥amaden-nas¥整備報告書¥2026¥${theCase?.ctrl}¥`;
 
-  const download = async () => {
-    if (generating) return;
-    setGenerating(true);
+  const downloadExcel = () => {
+    if (genExcel) return;
+    setGenExcel(true);
     try {
       exportReportExcel(previewData, theCase?.ctrl, reviewFields, workRows, measRows);
-      await exportReportPdf(printRef.current, theCase?.ctrl);
-      onAudit?.("帳票生成", theCase?.ctrl || "案件", "—", "Excel/PDFをダウンロード");
-      setDownloaded(true);
+      onAudit?.("帳票生成", theCase?.ctrl || "案件", "—", "Excelをダウンロード");
+      setGotExcel(true);
     } catch {
-      window.alert("Excel・PDFの生成に失敗しました。もう一度お試しください。");
+      window.alert("Excelの生成に失敗しました。もう一度お試しください。");
     } finally {
-      setGenerating(false);
+      setGenExcel(false);
+    }
+  };
+  const downloadPdf = async () => {
+    if (genPdf) return;
+    setGenPdf(true);
+    try {
+      await exportReportPdf(printRef.current, theCase?.ctrl);
+      onAudit?.("帳票生成", theCase?.ctrl || "案件", "—", "PDFをダウンロード");
+      setGotPdf(true);
+    } catch {
+      window.alert("PDFの生成に失敗しました。もう一度お試しください。");
+    } finally {
+      setGenPdf(false);
     }
   };
   const copyPath = async () => {
@@ -699,39 +713,38 @@ export function Done({ theCase, previewData, reviewFields, workRows, measRows, o
     catch { toast?.(nasPath); }
   };
 
+  const done = gotExcel && gotPdf;
   return (
     <div className="mx-auto px-8 py-10" style={{ maxWidth: 820 }}>
       <Card>
         <div className="text-center py-2">
-          <div className="w-14 h-14 rounded-full mx-auto flex items-center justify-center mb-3" style={{ backgroundColor: downloaded ? "#d1fae5" : C.panel }}>
-            {downloaded ? <CheckCircle2 size={30} style={{ color: "#059669" }} /> : <FileText size={26} style={{ color: C.sub }} />}
+          <div className="w-14 h-14 rounded-full mx-auto flex items-center justify-center mb-3" style={{ backgroundColor: done ? "#d1fae5" : C.panel }}>
+            {done ? <CheckCircle2 size={30} style={{ color: "#059669" }} /> : <FileText size={26} style={{ color: C.sub }} />}
           </div>
-          <div className="text-lg font-semibold" style={{ color: C.ink }}>{downloaded ? "Excel・PDFをダウンロードしました" : "整備報告書の準備ができました"}</div>
+          <div className="text-lg font-semibold" style={{ color: C.ink }}>{done ? "Excel・PDFをダウンロードしました" : "整備報告書の準備ができました"}</div>
           <div className="text-xs font-mono mt-1" style={{ color: C.sub }}>{theCase?.ctrl} ／ {theCase?.customer}</div>
         </div>
-        <div className="flex justify-center my-5">
-          <Btn variant="primary" size="lg" icon={FileText} onClick={download} disabled={generating}>
-            {generating ? "生成中…" : downloaded ? "もう一度ダウンロード" : "Excel・PDFをダウンロード"}
-          </Btn>
-        </div>
-        <div className="grid grid-cols-2 gap-3 mb-5">
+        <div className="grid grid-cols-2 gap-3 my-5">
           {[
-            { icon: FileSpreadsheet, c: "#1e7d45", bg: "#e4efe6", t: "Excel", s: `${theCase?.ctrl}_整備報告書.xlsx` },
-            { icon: FileText, c: "#c0392b", bg: "#fde8e8", t: "PDF", s: `${theCase?.ctrl}_整備報告書.pdf` },
+            { icon: FileSpreadsheet, c: "#1e7d45", bg: "#e4efe6", t: "Excel", s: `${theCase?.ctrl}_整備報告書.xlsx`, got: gotExcel, gen: genExcel, run: downloadExcel },
+            { icon: FileText, c: "#c0392b", bg: "#fde8e8", t: "PDF", s: `${theCase?.ctrl}_整備報告書.pdf`, got: gotPdf, gen: genPdf, run: downloadPdf },
           ].map((x, i) => (
             <div key={i} className="rounded-lg border px-4 py-3.5" style={{ borderColor: C.line }}>
               <div className="flex items-center gap-2.5 mb-2">
                 <div className="w-9 h-9 rounded flex items-center justify-center" style={{ backgroundColor: x.bg }}><x.icon size={18} style={{ color: x.c }} /></div>
                 <div>
                   <div className="text-sm font-medium" style={{ color: C.ink }}>{x.t}</div>
-                  {downloaded ? (
+                  {x.got ? (
                     <div className="inline-flex items-center gap-1 text-[11px]" style={{ color: "#059669" }}><Check size={11} />ダウンロード済み</div>
                   ) : (
                     <div className="text-[11px]" style={{ color: C.sub }}>未ダウンロード</div>
                   )}
                 </div>
               </div>
-              <div className="text-[11px] font-mono truncate" style={{ color: C.sub }}>{x.s}</div>
+              <div className="text-[11px] font-mono truncate mb-2.5" style={{ color: C.sub }}>{x.s}</div>
+              <Btn size="sm" variant={x.got ? "outline" : "primary"} icon={x.icon} onClick={x.run} disabled={x.gen}>
+                {x.gen ? "生成中…" : x.got ? "再ダウンロード" : "ダウンロード"}
+              </Btn>
             </div>
           ))}
         </div>

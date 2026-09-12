@@ -151,8 +151,8 @@ export default async function handler(req, res) {
       }),
       client.messages.create({
         model: MODEL,
-        max_tokens: 8000,
-        thinking: { type: "disabled" },
+        max_tokens: 12000,
+        // 該当箇所は手書きの丸印・二重線・訂正などが混ざり読み取りが難しいため、こちらも推論(thinking)を有効のままにする
         system: [...baseSystem(customer, ctrl), "今回は「不具合・処置」のみを読み取ってください。「通常分解整備以外の不良個所および懸念箇所」という表（箇所／症状／推奨作業などの列）は特に見落としやすいので必ず確認し、記入がある行はすべて拾ってください。特記事項欄・コメント欄に記載があればそれも対象です。"].join("\n"),
         tools: [DEFECTS_TOOL],
         tool_choice: { type: "tool", name: "submit_defects" },
