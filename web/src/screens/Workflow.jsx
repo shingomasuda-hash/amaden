@@ -571,9 +571,9 @@ export function ReportExtraSections({ reviewFields, workRows, measRows }) {
     <>
       {fieldGroups.length > 0 && (
         <div className="mx-auto bg-white" style={{ maxWidth: 640, ...paperBox }}>
-          <div className="px-3 py-2 border-b text-[12px] font-semibold" style={paperHead}>確認済み項目</div>
+          <div data-pdf-keep-next="1" className="px-3 py-2 border-b text-[12px] font-semibold" style={paperHead}>確認済み項目</div>
           {fieldGroups.map(([grp, items]) => (
-            <div key={grp}>
+            <div key={grp} data-pdf-block="1">
               <div className="px-3 pt-2 text-[11px] font-semibold" style={{ color: "#334155" }}>{grp}</div>
               {items.map((f) => (
                 <div key={f.id} className="flex border-b" style={{ borderColor: "#eef1f4" }}>
@@ -587,9 +587,9 @@ export function ReportExtraSections({ reviewFields, workRows, measRows }) {
       )}
       {workRows?.length > 0 && (
         <div className="mx-auto bg-white" style={{ maxWidth: 640, ...paperBox }}>
-          <div className="px-3 py-2 border-b text-[12px] font-semibold" style={paperHead}>作業内容・特記事項</div>
+          <div data-pdf-keep-next="1" className="px-3 py-2 border-b text-[12px] font-semibold" style={paperHead}>作業内容・特記事項</div>
           {workRows.map((r) => (
-            <div key={r.id} className="px-3 py-2 border-b" style={{ borderColor: "#eef1f4" }}>
+            <div key={r.id} data-pdf-block="1" className="px-3 py-2 border-b" style={{ borderColor: "#eef1f4" }}>
               <div className="text-[11px]" style={{ color: "#64748b" }}>{r.label}</div>
               <div className="text-[12px] whitespace-pre-wrap" style={{ color: "#0f172a" }}>{r.note || "—"}</div>
             </div>
@@ -598,11 +598,20 @@ export function ReportExtraSections({ reviewFields, workRows, measRows }) {
       )}
       {measGroups.length > 0 && (
         <div className="mx-auto bg-white" style={{ maxWidth: 640, ...paperBox }}>
-          <div className="px-3 py-2 border-b text-[12px] font-semibold" style={paperHead}>測定値</div>
+          <div data-pdf-keep-next="1" className="px-3 py-2 border-b text-[12px] font-semibold" style={paperHead}>測定値</div>
           {measGroups.map(([title, items]) => (
-            <div key={title} className="px-3 py-2 border-b" style={{ borderColor: "#eef1f4" }}>
+            <div key={title} data-pdf-block="1" className="px-3 py-2 border-b" style={{ borderColor: "#eef1f4" }}>
               <div className="text-[11px] font-semibold mb-1" style={{ color: "#334155" }}>{title}</div>
-              <table className="w-full text-[11px]">
+              {/* table-layout:fixed + colgroupで列幅を固定し、グループごとに項目名の長さが違っても
+                  測定値の列（管理値・整備前・整備後・判定）のx位置がグループ間でずれないようにする */}
+              <table className="w-full text-[11px]" style={{ tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: "40%" }} />
+                  <col style={{ width: "15%" }} />
+                  <col style={{ width: "15%" }} />
+                  <col style={{ width: "15%" }} />
+                  <col style={{ width: "15%" }} />
+                </colgroup>
                 <thead>
                   <tr style={{ color: "#64748b" }}>
                     <th className="text-left font-medium py-0.5">項目</th>
@@ -615,7 +624,7 @@ export function ReportExtraSections({ reviewFields, workRows, measRows }) {
                 <tbody>
                   {items.map((r) => (
                     <tr key={r.id} className="border-t" style={{ borderColor: "#eef1f4" }}>
-                      <td className="py-0.5" style={{ color: "#0f172a" }}>{r.item}{r.unit ? `（${r.unit}）` : ""}</td>
+                      <td className="py-0.5" style={{ color: "#0f172a", wordBreak: "break-word" }}>{r.item}{r.unit ? `（${r.unit}）` : ""}</td>
                       <td className="py-0.5 text-right" style={{ color: r.mgmt ? "#0f172a" : "#cbd5e1" }}>{r.mgmt || "—"}</td>
                       <td className="py-0.5 text-right" style={{ color: r.before ? "#0f172a" : "#cbd5e1" }}>{r.before || "—"}</td>
                       <td className="py-0.5 text-right" style={{ color: r.after ? "#0f172a" : "#cbd5e1" }}>{r.after || "—"}</td>
@@ -761,7 +770,7 @@ export function Done({ theCase, previewData, reviewFields, workRows, measRows, o
       {/* PDF化専用の非表示コピー（inputだとhtml2canvasでの描画が不安定なため、確定した文字として描画する） */}
       <div style={{ position: "fixed", top: 0, left: -9999, width: 640 }} aria-hidden="true">
         <div ref={printRef} className="bg-white">
-          <div style={{ border: "1px solid #cfd6dd" }}><ReportHead previewData={previewData} /></div>
+          <div data-pdf-block="1" style={{ border: "1px solid #cfd6dd" }}><ReportHead previewData={previewData} /></div>
           <ReportExtraSections reviewFields={reviewFields} workRows={workRows} measRows={measRows} />
         </div>
       </div>

@@ -42,9 +42,32 @@ export async function exportReportExcel(previewData, ctrl, reviewFields, workRow
   URL.revokeObjectURL(url);
 }
 
+// ページ境界が表・行の途中を切ってしまわないよう、DOM側で data-pdf-block="1" を付けた要素
+// （テーブル1グループ分、確認済み項目1グループ分など、途中で割れると読みにくくなる単位）の
+// 範囲をcanvas上のpx座標で集め、その範囲の内側でページを区切らないようにする。
+// data-pdf-keep-next="1"（各セクションの見出し）は、直後の要素とセットで1つの範囲として扱う
+// （見出しだけがページ末尾に取り残されるのを防ぐため）。
+const collectNoBreakSpans = (reportEl, scale) => {
+  const reportTop = reportEl.getBoundingClientRect().top;
+  const toSpan = (el) => {
+    const r = el.getBoundingClientRect();
+    return { start: (r.top - reportTop) * scale, end: (r.bottom - reportTop) * scale };
+  };
+  const spans = Array.from(reportEl.querySelectorAll('[data-pdf-block="1"]')).map(toSpan);
+  reportEl.querySelectorAll('[data-pdf-keep-next="1"]').forEach((headerEl) => {
+    const headerSpan = toSpan(headerEl);
+    const nextEl = headerEl.nextElementSibling;
+    const end = nextEl ? toSpan(nextEl).end : headerSpan.end;
+    spans.push({ start: headerSpan.start, end });
+  });
+  return spans;
+};
+
 export async function exportReportPdf(reportEl, ctrl) {
   if (!reportEl) throw new Error("プレビュー要素が見つかりません");
-  const canvas = await html2canvas(reportEl, { scale: 2, backgroundColor: "#ffffff" });
+  const scale = 2;
+  const noBreakSpans = collectNoBreakSpans(reportEl, scale);
+  const canvas = await html2canvas(reportEl, { scale, backgroundColor: "#ffffff" });
 
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
@@ -55,7 +78,22 @@ export async function exportReportPdf(reportEl, ctrl) {
 
   // canvas上のpx ⇔ PDF上のmm の換算比（幅基準）
   const pxPerMm = canvas.width / contentWidthMm;
-  const pageHeightPx = Math.max(1, Math.floor(contentHeightMm * pxPerMm)); // 1ページ分に収まるcanvas上の高さ(px)
+  const pageHeightPx = Math.max(1, Math.floor(contentHeightMm * pxPerMm)); // 1ページに収まるcanvas上の高さ(px)
+
+  // ページ区切り位置が「途中で割ってはいけない範囲」の内側に来る場合は、その範囲の先頭まで
+  // 区切り位置を前倒しする（＝該当ブロックを丸ごと次ページへ送る）。範囲がページ開始位置より
+  // 前から始まっている（＝1ページに収まらないほど大きいブロック）場合は前倒しできないため、
+  // やむを得ずそのまま切る。
+  const adjustBreak = (pageStartPx, naiveEndPx) => {
+    if (naiveEndPx >= canvas.height) return naiveEndPx;
+    let breakAt = naiveEndPx;
+    for (const span of noBreakSpans) {
+      if (span.start > pageStartPx && span.start < naiveEndPx && span.end > naiveEndPx) {
+        breakAt = Math.min(breakAt, span.start);
+      }
+    }
+    return breakAt > pageStartPx ? breakAt : naiveEndPx;
+  };
 
   // 元画像を、ページに収まる高さごとに別々のcanvasへ完全に切り出してから貼り付ける。
   // jsPDFの座標をずらして重ねて描く方式(addImageを毎ページ同じ画像で位置だけ変える)は、
@@ -64,7 +102,9 @@ export async function exportReportPdf(reportEl, ctrl) {
   let renderedPx = 0;
   let first = true;
   while (renderedPx < canvas.height) {
-    const sliceHeightPx = Math.min(pageHeightPx, canvas.height - renderedPx);
+    const naiveEnd = Math.min(renderedPx + pageHeightPx, canvas.height);
+    const pageEnd = adjustBreak(renderedPx, naiveEnd);
+    const sliceHeightPx = Math.max(1, Math.round(pageEnd - renderedPx));
     const sliceCanvas = document.createElement("canvas");
     sliceCanvas.width = canvas.width;
     sliceCanvas.height = sliceHeightPx;
