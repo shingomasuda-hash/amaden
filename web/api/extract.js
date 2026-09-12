@@ -170,12 +170,18 @@ export default async function handler(req, res) {
     };
     console.log("[extract] 件数:", { fields: result.fields.length, defects: result.defects.length, measurements: result.measurements.length });
 
-    // ツール呼び出し自体は成功したが3項目すべて0件、というのは今回のPDFでは本来あり得ない
+    // ツール呼び出し自体は成功したのに項目が0件、というのは今回のPDFでは本来あり得ない
     // （実データが存在するため）。原因調査用に、通常のエラーとして診断情報つきで返す。
-    if (result.fields.length === 0 && result.defects.length === 0 && result.measurements.length === 0) {
-      console.error("[extract] 全項目が空でした", { fieldsStop: fieldsMsg.stop_reason, defMeasStop: defMeasMsg.stop_reason });
+    const allEmpty = result.fields.length === 0 && result.defects.length === 0 && result.measurements.length === 0;
+    const defMeasEmpty = result.defects.length === 0 && result.measurements.length === 0;
+    if (allEmpty || defMeasEmpty) {
+      const defMeasTexts = defMeasMsg.content.filter((b) => b.type === "text").map((b) => b.text).join(" / ");
+      console.error("[extract] 結果が空でした", {
+        fieldsStop: fieldsMsg.stop_reason, fieldsUsage: fieldsMsg.usage, fieldsCount: result.fields.length,
+        defMeasStop: defMeasMsg.stop_reason, defMeasUsage: defMeasMsg.usage, defMeasTexts,
+      });
       res.status(502).json({
-        error: `読み取り結果が空でした（診断情報: fields停止理由=${fieldsMsg.stop_reason}, 不具合/測定値停止理由=${defMeasMsg.stop_reason}）。もう一度お試しいただくか、この画面をスクリーンショットして共有してください。`,
+        error: `読み取り結果が空でした（診断情報: fields件数=${result.fields.length}/停止理由=${fieldsMsg.stop_reason}, 不具合・測定値停止理由=${defMeasMsg.stop_reason}${defMeasTexts ? `, モデルの発言=${defMeasTexts.slice(0, 200)}` : ""}）。もう一度お試しいただくか、この画面をスクリーンショットして共有してください。`,
       });
       return;
     }
