@@ -13,7 +13,7 @@ import { CaseChatScreen } from "./screens/CaseChatScreen";
 import { AdminPanel } from "./screens/AdminPanel";
 import {
   Stepper, UploadScreen, Processing, Review, WorkContent, Measurements, Preview, Done,
-  toReviewFields, toDefectRows, toMeasRows,
+  toReviewFields, toDefectRows, toMeasRows, toPreviewDefaults,
 } from "./screens/Workflow";
 import { STEPS } from "./lib/mockWorkflow";
 
@@ -70,9 +70,10 @@ function StaffApp() {
   const [reviewFields, setReviewFields] = useState([]);
   const [workRows, setWorkRows] = useState([]);
   const [measRows, setMeasRows] = useState([]);
+  const [previewData, setPreviewData] = useState(null); // 提出プレビューの基本情報（顧客名・出力等、編集可）
   const resetExtraction = () => {
     setExtractStatus("idle"); setExtractError("");
-    setReviewFields([]); setWorkRows([]); setMeasRows([]);
+    setReviewFields([]); setWorkRows([]); setMeasRows([]); setPreviewData(null);
   };
 
   // 画面遷移は必ずこれを通す（forward）。前の画面をスタックに積んでおくことで「戻る」ができる。
@@ -139,9 +140,11 @@ function StaffApp() {
     navigate("processing");
     try {
       const { result, cost, truncated } = await extractCase(file, { customer: activeCase.customer, ctrl: activeCase.ctrl });
-      setReviewFields(toReviewFields(result?.fields));
+      const fields = toReviewFields(result?.fields);
+      setReviewFields(fields);
       setWorkRows(toDefectRows(result?.defects));
       setMeasRows(toMeasRows(result?.measurements));
+      setPreviewData(toPreviewDefaults(activeCase, fields));
       setExtractStatus("done");
       if (cost) logAiCost(activeCase, currentUser.name, cost).catch(() => {});
       if (truncated) toast("読み取り結果が多く、AIの出力上限に達した可能性があります。各画面の内容を漏れなくご確認ください。");
@@ -230,8 +233,14 @@ function StaffApp() {
         {screen === "review" && <Review fields={reviewFields} setFields={setReviewFields} onNext={() => navigate("work")} onAudit={onAudit} />}
         {screen === "work" && <WorkContent rows={workRows} setRows={setWorkRows} onNext={() => navigate("meas")} onAudit={onAudit} />}
         {screen === "meas" && <Measurements rows={measRows} setRows={setMeasRows} onNext={() => navigate("preview")} onAudit={onAudit} />}
-        {screen === "preview" && <Preview theCase={activeCaseLive} reviewFields={reviewFields} workRows={workRows} measRows={measRows} onNext={() => navigate("done")} onAudit={onAudit} />}
-        {screen === "done" && <Done theCase={activeCaseLive} onHome={goHome} toast={toast} />}
+        {screen === "preview" && (
+          <Preview theCase={activeCaseLive} previewData={previewData} setPreviewData={setPreviewData}
+            reviewFields={reviewFields} workRows={workRows} measRows={measRows} onNext={() => navigate("done")} onAudit={onAudit} />
+        )}
+        {screen === "done" && (
+          <Done theCase={activeCaseLive} previewData={previewData} reviewFields={reviewFields} workRows={workRows} measRows={measRows}
+            onHome={goHome} onAudit={onAudit} toast={toast} />
+        )}
       </main>
 
       {toastMsg && <Toast msg={toastMsg} onClose={() => setToastMsg(null)} />}

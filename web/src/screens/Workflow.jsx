@@ -519,7 +519,7 @@ const findFieldValue = (fields, keywords) => {
 };
 
 // 案件の基本情報に加え、結果確認画面で確定した内容（出力・電圧・極数）を初期値として反映する
-const toPreviewDefaults = (theCase, reviewFields) => ({
+export const toPreviewDefaults = (theCase, reviewFields) => ({
   customer: theCase?.customer || "",
   completeDate: "",
   ctrl: theCase?.ctrl || "",
@@ -542,9 +542,29 @@ const groupBy = (list, keyFn, fallback) => {
 const paperBox = { border: "1px solid #cfd6dd", borderTop: "none" };
 const paperHead = { borderColor: "#d9dee4", backgroundColor: "#f6f8fa", color: "#1f2937" };
 
+// 提出用レポートの基本情報部分（入力欄なしの静的な見た目版）。プレビュー画面の編集欄とは別に、
+// 完了画面でのPDF化(html2canvas)用に、確定した文字として描画するために使う。
+export function ReportHead({ previewData }) {
+  const rows = [{ id: "customer", label: "顧客名" }, { id: "completeDate", label: "作業完了日" }, { id: "ctrl", label: "管理No" }, { id: "owner", label: "担当者" },
+    { id: "output", label: "出力" }, { id: "voltage", label: "電圧" }, { id: "pole", label: "極数" }];
+  return (
+    <>
+      <div className="text-center py-3 border-b" style={{ borderColor: "#cfd6dd", backgroundColor: "#f3f5f7" }}>
+        <div className="text-base font-semibold tracking-widest" style={{ color: "#1f2937" }}>整 備 報 告 書</div>
+      </div>
+      {rows.map((r) => (
+        <div key={r.id} className="flex border-b" style={{ borderColor: "#d9dee4" }}>
+          <div className="w-32 px-2 py-1.5 text-[11px] border-r shrink-0" style={{ borderColor: "#d9dee4", backgroundColor: "#f6f8fa", color: "#64748b" }}>{r.label}</div>
+          <div className="flex-1 px-2 py-1.5 text-[13px]" style={{ whiteSpace: "pre-wrap", color: "#0f172a" }}>{previewData?.[r.id] || ""}</div>
+        </div>
+      ))}
+    </>
+  );
+}
+
 // 結果確認（全項目）・作業内容（特記事項）・測定値の内容を、提出用レポートの続きとして表示する部分。
 // 入力欄は一切なく、静的なDOMのみなので画面表示とPDF化(html2canvas)の両方でそのまま使い回せる。
-function ReportExtraSections({ reviewFields, workRows, measRows }) {
+export function ReportExtraSections({ reviewFields, workRows, measRows }) {
   const fieldGroups = useMemo(() => groupBy(reviewFields, (f) => f.grp, "その他"), [reviewFields]);
   const measGroups = useMemo(() => groupBy(measRows, (r) => r.title, "測定値"), [measRows]);
   return (
@@ -612,56 +632,26 @@ function ReportExtraSections({ reviewFields, workRows, measRows }) {
   );
 }
 
-export function Preview({ theCase, reviewFields, workRows, measRows, onNext, onAudit }) {
-  // 案件の実データに加え、結果確認画面での修正内容があればそれを初期値として反映する（下の欄で自由に修正可能）
-  const [previewData, setPreviewData] = useState(() => toPreviewDefaults(theCase, reviewFields));
-  const [generating, setGenerating] = useState(false);
+// previewData/setPreviewData は App.jsx が所有する状態（完了画面での実際のダウンロードに使うため）
+export function Preview({ theCase, previewData, setPreviewData, reviewFields, workRows, measRows, onNext, onAudit }) {
   const focusValues = useRef({});
-  const printRef = useRef(null); // PDF化用（inputではなく文字として描画した非表示コピー。確認済み項目/作業内容/測定値も含めてまるごとここに入れる）
   const rows = [{ id: "customer", label: "顧客名" }, { id: "completeDate", label: "作業完了日" }, { id: "ctrl", label: "管理No" }, { id: "owner", label: "担当者" },
     { id: "output", label: "出力" }, { id: "voltage", label: "電圧" }, { id: "pole", label: "極数" }];
   const update = (id, v) => setPreviewData((d) => ({ ...d, [id]: v }));
-  const onFocus = (id) => { focusValues.current[id] = previewData[id] || ""; };
+  const onFocus = (id) => { focusValues.current[id] = previewData?.[id] || ""; };
   const onBlur = (id) => {
-    const before = focusValues.current[id], after = previewData[id] || "";
+    const before = focusValues.current[id], after = previewData?.[id] || "";
     if (before !== undefined && before !== after) onAudit?.("提出用プレビュー編集", `${theCase?.ctrl || "新規案件"} / ${id}`, before, after);
   };
-  const generate = async () => {
-    if (generating) return;
-    setGenerating(true);
-    try {
-      exportReportExcel(previewData, theCase?.ctrl, reviewFields, workRows, measRows);
-      await exportReportPdf(printRef.current, theCase?.ctrl);
-      onAudit?.("帳票生成", theCase?.ctrl || "案件", "—", "Excel/PDFをダウンロード");
-      onNext();
-    } catch {
-      window.alert("Excel・PDFの生成に失敗しました。もう一度お試しください。");
-    } finally {
-      setGenerating(false);
-    }
-  };
-  const reportHead = (
-    <>
-      <div className="text-center py-3 border-b" style={{ borderColor: "#cfd6dd", backgroundColor: "#f3f5f7" }}>
-        <div className="text-base font-semibold tracking-widest" style={{ color: "#1f2937" }}>整 備 報 告 書</div>
-      </div>
-      {rows.map((r) => (
-        <div key={r.id} className="flex border-b" style={{ borderColor: "#d9dee4" }}>
-          <div className="w-32 px-2 py-1.5 text-[11px] border-r shrink-0" style={{ borderColor: "#d9dee4", backgroundColor: "#f6f8fa", color: "#64748b" }}>{r.label}</div>
-          <div className="flex-1 px-2 py-1.5 text-[13px]" style={{ whiteSpace: "pre-wrap", color: "#0f172a" }}>{previewData[r.id] || ""}</div>
-        </div>
-      ))}
-    </>
-  );
   return (
     <div className="mx-auto px-8 py-5" style={{ maxWidth: 1000 }}>
       <div className="flex items-center justify-between mb-3">
         <h1 className="text-lg font-semibold" style={{ color: C.ink }}>提出用プレビュー</h1>
-        <Btn variant="primary" icon={FileText} onClick={generate} disabled={generating}>{generating ? "生成中…" : "Excel・PDFを生成"}</Btn>
+        <Btn variant="primary" icon={ArrowRight} onClick={() => { onAudit?.("提出用プレビュー確認", theCase?.ctrl || "案件", "—", "内容確認"); onNext(); }}>次へ（ダウンロードへ）</Btn>
       </div>
       <div className="flex items-start gap-1.5 text-xs mb-3 rounded px-3 py-2" style={{ color: "#475569", backgroundColor: C.panel }}>
         <Info size={13} className="mt-0.5" />
-        上部の基本情報は自由に編集できます。その下の「確認済み項目」「作業内容・特記事項」「測定値」は、各画面で確定した内容がそのまま表示されます（修正はそれぞれの画面で行ってください）。
+        上部の基本情報は自由に編集できます。その下の「確認済み項目」「作業内容・特記事項」「測定値」は、各画面で確定した内容がそのまま表示されます（修正はそれぞれの画面で行ってください）。Excel・PDFのダウンロードは次の画面で行えます。
       </div>
       <Card>
         <div className="mx-auto bg-white shadow-sm" style={{ maxWidth: 640, border: "1px solid #cfd6dd" }}>
@@ -672,40 +662,59 @@ export function Preview({ theCase, reviewFields, workRows, measRows, onNext, onA
             <div key={r.id} className="flex border-b" style={{ borderColor: "#d9dee4" }}>
               <div className="w-32 px-2 py-1.5 text-[11px] border-r shrink-0" style={{ borderColor: "#d9dee4", backgroundColor: "#f6f8fa", color: "#64748b" }}>{r.label}</div>
               <div className="flex-1 px-2 py-1.5 text-[13px]">
-                <input value={previewData[r.id] || ""} onChange={(e) => update(r.id, e.target.value)} onFocus={() => onFocus(r.id)} onBlur={() => onBlur(r.id)} className="w-full bg-transparent outline-none" />
+                <input value={previewData?.[r.id] || ""} onChange={(e) => update(r.id, e.target.value)} onFocus={() => onFocus(r.id)} onBlur={() => onBlur(r.id)} className="w-full bg-transparent outline-none" />
               </div>
             </div>
           ))}
         </div>
         <ReportExtraSections reviewFields={reviewFields} workRows={workRows} measRows={measRows} />
       </Card>
-      {/* PDF化専用の非表示コピー（inputだとhtml2canvasでの描画が不安定なため、確定した文字として描画する） */}
-      <div style={{ position: "fixed", top: 0, left: -9999, width: 640 }} aria-hidden="true">
-        <div ref={printRef} className="bg-white">
-          <div style={{ border: "1px solid #cfd6dd" }}>{reportHead}</div>
-          <ReportExtraSections reviewFields={reviewFields} workRows={workRows} measRows={measRows} />
-        </div>
-      </div>
       <div className="mt-4"><ProtoNote /></div>
     </div>
   );
 }
 
-export function Done({ theCase, onHome, toast }) {
+export function Done({ theCase, previewData, reviewFields, workRows, measRows, onHome, onAudit, toast }) {
+  const [generating, setGenerating] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
+  const printRef = useRef(null); // PDF化用（確定した文字として描画した非表示コピー）
   const nasPath = `¥¥amaden-nas¥整備報告書¥2026¥${theCase?.ctrl}¥`;
+
+  const download = async () => {
+    if (generating) return;
+    setGenerating(true);
+    try {
+      exportReportExcel(previewData, theCase?.ctrl, reviewFields, workRows, measRows);
+      await exportReportPdf(printRef.current, theCase?.ctrl);
+      onAudit?.("帳票生成", theCase?.ctrl || "案件", "—", "Excel/PDFをダウンロード");
+      setDownloaded(true);
+    } catch {
+      window.alert("Excel・PDFの生成に失敗しました。もう一度お試しください。");
+    } finally {
+      setGenerating(false);
+    }
+  };
   const copyPath = async () => {
     try { await navigator.clipboard.writeText(nasPath); toast?.("フォルダパスをコピーしました"); }
     catch { toast?.(nasPath); }
   };
+
   return (
     <div className="mx-auto px-8 py-10" style={{ maxWidth: 820 }}>
       <Card>
         <div className="text-center py-2">
-          <div className="w-14 h-14 rounded-full mx-auto flex items-center justify-center mb-3" style={{ backgroundColor: "#d1fae5" }}><CheckCircle2 size={30} style={{ color: "#059669" }} /></div>
-          <div className="text-lg font-semibold" style={{ color: C.ink }}>Excel・PDFをダウンロードしました</div>
+          <div className="w-14 h-14 rounded-full mx-auto flex items-center justify-center mb-3" style={{ backgroundColor: downloaded ? "#d1fae5" : C.panel }}>
+            {downloaded ? <CheckCircle2 size={30} style={{ color: "#059669" }} /> : <FileText size={26} style={{ color: C.sub }} />}
+          </div>
+          <div className="text-lg font-semibold" style={{ color: C.ink }}>{downloaded ? "Excel・PDFをダウンロードしました" : "整備報告書の準備ができました"}</div>
           <div className="text-xs font-mono mt-1" style={{ color: C.sub }}>{theCase?.ctrl} ／ {theCase?.customer}</div>
         </div>
-        <div className="grid grid-cols-2 gap-3 my-5">
+        <div className="flex justify-center my-5">
+          <Btn variant="primary" size="lg" icon={FileText} onClick={download} disabled={generating}>
+            {generating ? "生成中…" : downloaded ? "もう一度ダウンロード" : "Excel・PDFをダウンロード"}
+          </Btn>
+        </div>
+        <div className="grid grid-cols-2 gap-3 mb-5">
           {[
             { icon: FileSpreadsheet, c: "#1e7d45", bg: "#e4efe6", t: "Excel", s: `${theCase?.ctrl}_整備報告書.xlsx` },
             { icon: FileText, c: "#c0392b", bg: "#fde8e8", t: "PDF", s: `${theCase?.ctrl}_整備報告書.pdf` },
@@ -715,7 +724,11 @@ export function Done({ theCase, onHome, toast }) {
                 <div className="w-9 h-9 rounded flex items-center justify-center" style={{ backgroundColor: x.bg }}><x.icon size={18} style={{ color: x.c }} /></div>
                 <div>
                   <div className="text-sm font-medium" style={{ color: C.ink }}>{x.t}</div>
-                  <div className="inline-flex items-center gap-1 text-[11px]" style={{ color: "#059669" }}><Check size={11} />ダウンロード済み</div>
+                  {downloaded ? (
+                    <div className="inline-flex items-center gap-1 text-[11px]" style={{ color: "#059669" }}><Check size={11} />ダウンロード済み</div>
+                  ) : (
+                    <div className="text-[11px]" style={{ color: C.sub }}>未ダウンロード</div>
+                  )}
                 </div>
               </div>
               <div className="text-[11px] font-mono truncate" style={{ color: C.sub }}>{x.s}</div>
@@ -732,6 +745,13 @@ export function Done({ theCase, onHome, toast }) {
         <div className="flex justify-center"><Btn variant="primary" size="lg" icon={ChevronLeft} onClick={onHome}>案件一覧へ戻る</Btn></div>
         <div className="mt-5"><ProtoNote /></div>
       </Card>
+      {/* PDF化専用の非表示コピー（inputだとhtml2canvasでの描画が不安定なため、確定した文字として描画する） */}
+      <div style={{ position: "fixed", top: 0, left: -9999, width: 640 }} aria-hidden="true">
+        <div ref={printRef} className="bg-white">
+          <div style={{ border: "1px solid #cfd6dd" }}><ReportHead previewData={previewData} /></div>
+          <ReportExtraSections reviewFields={reviewFields} workRows={workRows} measRows={measRows} />
+        </div>
+      </div>
     </div>
   );
 }
