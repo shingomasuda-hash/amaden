@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { firebaseReady } from "./lib/firebase";
 import { useAuth } from "./lib/useAuth";
-import { useCases, useProfiles, useAuditLogs, useThreadCounts, logActivity, pushSystemNote, createCase, toggleCaseLink, logAiCost } from "./lib/useData";
+import { useCases, useProfiles, useAuditLogs, useThreadCounts, logActivity, pushSystemNote, createCase, toggleCaseLink, logAiCost, saveExtraction } from "./lib/useData";
 import { extractCase } from "./lib/extract";
 import { C } from "./lib/theme";
 import { FileSpreadsheet, ShieldCheck, LogOut, Info, LayoutDashboard, ChevronLeft } from "./lib/icons";
@@ -76,6 +76,21 @@ function StaffApp() {
     setReviewFields([]); setWorkRows([]); setMeasRows([]); setPreviewData(null);
   };
 
+  // AI読み取り結果・各画面での編集内容をFirestoreへ自動保存する（デバウンス付き）。
+  // これが無いと、案件を開き直したりページを再読み込みした際に読み取り結果が消えてしまう
+  // （React stateにしか無いため）。読み取り完了後の編集（特記事項の修正など）も対象。
+  const saveTimerRef = useRef(null);
+  useEffect(() => {
+    // 閲覧者はcasesへの書き込み権限が無い（Firestoreルール）ため、無駄な書き込み試行はしない
+    if (!activeCase || extractStatus !== "done" || !auth.profile || auth.profile.role === "閲覧者") return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveExtraction(activeCase, { reviewFields, workRows, measRows, previewData }).catch(() => {});
+    }, 800);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewFields, workRows, measRows, previewData, extractStatus, activeCase?.ctrl, auth.profile?.role]);
+
   // 画面遷移は必ずこれを通す（forward）。前の画面をスタックに積んでおくことで「戻る」ができる。
   const navigate = (next) => {
     setScreenHistory((h) => [...h, screen]);
@@ -110,7 +125,18 @@ function StaffApp() {
 
   const openCase = (c, at) => {
     setActiveCase(c);
-    resetExtraction();
+    // 以前にAI読み取り・確認画面での編集内容を保存済みなら復元する。保存が無い（まだ一度も
+    // 読み取っていない）場合だけ空の状態から始める。これが無いと、案件を開き直すたびに
+    // （ページ再読み込みも含め）読み取り結果が毎回消えてしまっていた。
+    if (c.extraction) {
+      setExtractStatus("done"); setExtractError("");
+      setReviewFields(c.extraction.reviewFields || []);
+      setWorkRows(c.extraction.workRows || []);
+      setMeasRows(c.extraction.measRows || []);
+      setPreviewData(c.extraction.previewData || null);
+    } else {
+      resetExtraction();
+    }
     navigate(at);
     logActivity(currentUser.name, "案件を開いた", c.ctrl, "—", STEPS.find((s) => s.id === at)?.name || at);
     pushSystemNote(c, `${currentUser.name} が案件を開きました（${STEPS.find((s) => s.id === at)?.name || at}）。`);

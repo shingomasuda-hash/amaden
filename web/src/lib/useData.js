@@ -146,6 +146,24 @@ export async function toggleCaseLink(theCase) {
   return !wasEnabled;
 }
 
+/* AI読み取り結果・各画面での編集内容を案件に保存する。
+   これを保存していないと、ダッシュボードから案件を開き直したりページを再読み込みした際に
+   reviewFields/workRows/measRows/previewData がReactのstate上にしか無いため消えてしまい、
+   「結果が出てこない」状態になる（AI読み取り自体は成功していても再現しない不具合の原因だった）。
+   呼び出し側で軽くデバウンスして、編集のたびに毎回書き込みすぎないようにする。 */
+export async function saveExtraction(theCase, { reviewFields, workRows, measRows, previewData }) {
+  if (!theCase?.ctrl) return;
+  await updateDoc(doc(db, "cases", theCase.ctrl), {
+    extraction: {
+      reviewFields: reviewFields || [],
+      workRows: workRows || [],
+      measRows: measRows || [],
+      previewData: previewData || null,
+    },
+    updated_at: serverTimestamp(),
+  });
+}
+
 /* AI読み取り（Claude API）1回分のコストを、案件の累計とあわせて記録する。
    cost: { usd, jpyEstimate, inputTok, outputTok }（サーバー側の概算値） */
 export async function logAiCost(theCase, actorName, cost) {
