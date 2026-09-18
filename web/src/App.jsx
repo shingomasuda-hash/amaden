@@ -79,17 +79,54 @@ function StaffApp() {
   // AI読み取り結果・各画面での編集内容をFirestoreへ自動保存する（デバウンス付き）。
   // これが無いと、案件を開き直したりページを再読み込みした際に読み取り結果が消えてしまう
   // （React stateにしか無いため）。読み取り完了後の編集（特記事項の修正など）も対象。
+  // 保存に失敗した場合はcatchで握りつぶさずtoastで知らせる（サイレントに消えたままにしない）。
   const saveTimerRef = useRef(null);
+  const pendingSaveRef = useRef(null); // 保留中のタイマーがある間、直近の保存内容を保持（離脱時の即時保存用）
+  const doSave = (theCase, payload) => {
+    saveExtraction(theCase, payload).catch((e) => {
+      console.error("[autosave]", e);
+      toast("読み取り結果の保存に失敗しました。画面を離れる前にもう一度お試しください。");
+    });
+  };
+  // 案件一覧へ戻る等、離脱する直前に呼ぶ。デバウンス待ちの保存が残っていれば即座に確定させる。
+  const flushPendingSave = () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    if (pendingSaveRef.current) {
+      const { theCase, payload } = pendingSaveRef.current;
+      pendingSaveRef.current = null;
+      doSave(theCase, payload);
+    }
+  };
   useEffect(() => {
     // 閲覧者はcasesへの書き込み権限が無い（Firestoreルール）ため、無駄な書き込み試行はしない
     if (!activeCase || extractStatus !== "done" || !auth.profile || auth.profile.role === "閲覧者") return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    const payload = { reviewFields, workRows, measRows, previewData };
+    pendingSaveRef.current = { theCase: activeCase, payload };
     saveTimerRef.current = setTimeout(() => {
-      saveExtraction(activeCase, { reviewFields, workRows, measRows, previewData }).catch(() => {});
+      saveTimerRef.current = null;
+      pendingSaveRef.current = null;
+      doSave(activeCase, payload);
     }, 800);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reviewFields, workRows, measRows, previewData, extractStatus, activeCase?.ctrl, auth.profile?.role]);
+
+  // タブを閉じる・リロードする・他アプリに切り替える等でページが隠れる直前にも、保留中の
+  // 保存があればベストエフォートで確定させる（完了を待たずに離脱されるケースの保険）。
+  useEffect(() => {
+    const onHide = () => flushPendingSave();
+    window.addEventListener("pagehide", onHide);
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+      document.removeEventListener("visibilitychange", onHide);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 画面遷移は必ずこれを通す（forward）。前の画面をスタックに積んでおくことで「戻る」ができる。
   const navigate = (next) => {
@@ -124,6 +161,7 @@ function StaffApp() {
   const activeCaseLive = activeCase ? cases.find((c) => c.ctrl === activeCase.ctrl) || activeCase : null;
 
   const openCase = (c, at) => {
+    flushPendingSave(); // 直前まで開いていた別の案件で編集が保留中なら、切り替える前に確定させる
     setActiveCase(c);
     // 以前にAI読み取り・確認画面での編集内容を保存済みなら復元する。保存が無い（まだ一度も
     // 読み取っていない）場合だけ空の状態から始める。これが無いと、案件を開き直すたびに
@@ -159,7 +197,7 @@ function StaffApp() {
   };
 
   const openChat = (c) => { setActiveCase(c); navigate("casechat"); };
-  const goHome = () => { setScreenRaw("dashboard"); setActiveCase(null); setScreenHistory([]); resetExtraction(); };
+  const goHome = () => { flushPendingSave(); setScreenRaw("dashboard"); setActiveCase(null); setScreenHistory([]); resetExtraction(); };
 
   // アップロードされたPDFをAI(Claude)に読み取らせる。結果は各確認画面(Review/WorkContent/Measurements)へ渡す。
   const startExtraction = async (file) => {
@@ -170,11 +208,18 @@ function StaffApp() {
     try {
       const { result, cost, truncated, warnings } = await extractCase(file, { customer: activeCase.customer, ctrl: activeCase.ctrl });
       const fields = toReviewFields(result?.fields);
+      const defects = toDefectRows(result?.defects);
+      const measurements = toMeasRows(result?.measurements);
+      const preview = toPreviewDefaults(activeCase, fields);
       setReviewFields(fields);
-      setWorkRows(toDefectRows(result?.defects));
-      setMeasRows(toMeasRows(result?.measurements));
-      setPreviewData(toPreviewDefaults(activeCase, fields));
+      setWorkRows(defects);
+      setMeasRows(measurements);
+      setPreviewData(preview);
       setExtractStatus("done");
+      // 読み取り結果は、その後の編集を待つデバウンス保存を待たず、ここで即座に保存する。
+      // ここでの保存を待たずに画面を離れる（一覧へ戻る等）と、AI読み取りには成功していても
+      // 結果が保存されずに消えてしまうため。
+      doSave(activeCase, { reviewFields: fields, workRows: defects, measRows: measurements, previewData: preview });
       if (cost) logAiCost(activeCase, currentUser.name, cost).catch(() => {});
       if (truncated) {
         toast("読み取り結果が多く、AIの出力上限に達した可能性があります。各画面の内容を漏れなくご確認ください。");
@@ -191,7 +236,7 @@ function StaffApp() {
     }
   };
 
-  const backToUpload = () => { resetExtraction(); goBack(); };
+  const backToUpload = () => { flushPendingSave(); resetExtraction(); goBack(); };
 
   const copyLink = async (c) => {
     if (!c.linkToken) { toast("先方用リンクがまだ発行されていません"); return; }
