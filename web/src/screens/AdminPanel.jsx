@@ -2,18 +2,20 @@ import { useMemo, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { C, fmtAt } from "../lib/theme";
-import { ShieldCheck, Users, MessageSquare, History, LayoutDashboard, FileText, Link2 } from "../lib/icons";
+import { ShieldCheck, Users, MessageSquare, History, LayoutDashboard, FileText, Link2, DollarSign } from "../lib/icons";
 import { Btn, Card, ProtoNote } from "../components/ui";
 import { logActivity } from "../lib/useData";
 
 const JPY_PER_USD = 155; // 概算レート。web/api/extract.js の usdToJpyEstimate と合わせている
 
-export function AdminPanel({ profiles, cases, threadCounts, currentUser, onBack, onOpenChat, onCopyLink, onToggleLink, logs, toast }) {
+export function AdminPanel({ profiles, cases, threadCounts, currentUser, onBack, onOpenChat, onCopyLink, onToggleLink, logs, aiCostLogs = [], toast }) {
   const [tab, setTab] = useState("accounts");
   const [logUser, setLogUser] = useState("全員");
   const [logAction, setLogAction] = useState("全操作");
   const totalAiCostUsd = useMemo(() => cases.reduce((sum, c) => sum + (c.aiCostUsd || 0), 0), [cases]);
   const totalAiCostCount = useMemo(() => cases.reduce((sum, c) => sum + (c.aiCostCount || 0), 0), [cases]);
+  // aiCostLogsは案件を削除しても残る全履歴（cases側の累計は削除済み案件の分が消えてしまうため別集計）
+  const totalAiCostUsdAllTime = useMemo(() => aiCostLogs.reduce((sum, l) => sum + (l.usd || 0), 0), [aiCostLogs]);
 
   const updateProfile = async (p, patch) => {
     const key = Object.keys(patch)[0];
@@ -54,6 +56,7 @@ export function AdminPanel({ profiles, cases, threadCounts, currentUser, onBack,
           アカウント管理{profiles.some((p) => p.role === "pending") ? ` (${profiles.filter((p) => p.role === "pending").length})` : ""}
         </Btn>
         <Btn variant={tab === "chats" ? "primary" : "outline"} icon={MessageSquare} onClick={() => setTab("chats")}>先方とのやり取り</Btn>
+        <Btn variant={tab === "aicost" ? "primary" : "outline"} icon={DollarSign} onClick={() => setTab("aicost")}>費用履歴</Btn>
         <Btn variant={tab === "logs" ? "primary" : "outline"} icon={History} onClick={() => setTab("logs")}>変更履歴</Btn>
       </div>
 
@@ -136,6 +139,40 @@ export function AdminPanel({ profiles, cases, threadCounts, currentUser, onBack,
                   </tr>
                 );
               })}
+            </tbody>
+          </table>
+          <div className="px-5 py-3 text-[11px]" style={{ color: C.sub }}>
+            コストは概算です（Claude APIの参考単価から算出）。正確な請求額は console.anthropic.com の使用状況をご確認ください。
+          </div>
+        </Card>
+      )}
+
+      {tab === "aicost" && (
+        <Card pad={false}>
+          <div className="px-5 py-3 border-b flex items-center justify-between flex-wrap gap-2" style={{ borderColor: C.line }}>
+            <div>
+              <div className="text-sm font-semibold" style={{ color: C.ink }}>AI読み取り費用履歴</div>
+              <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>案件を削除しても、この履歴は残ります。</div>
+            </div>
+            <div className="text-xs" style={{ color: C.sub }}>
+              全期間合計 <span className="font-mono font-medium" style={{ color: C.navy }}>${totalAiCostUsdAllTime.toFixed(4)}</span>（約¥{Math.ceil(totalAiCostUsdAllTime * JPY_PER_USD)}）・{aiCostLogs.length}回
+            </div>
+          </div>
+          <table className="w-full text-sm">
+            <thead><tr className="text-left" style={{ color: C.sub, backgroundColor: C.panel }}>
+              {["日時", "管理番号", "顧客名", "実行者", "コスト（概算）"].map((h) => <th key={h} className="px-5 py-2.5 font-medium text-xs">{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {aiCostLogs.map((l) => (
+                <tr key={l.id} className="border-t" style={{ borderColor: C.line }}>
+                  <td className="px-5 py-3 font-mono text-xs" style={{ color: C.sub }}>{fmtAt(l.at)}</td>
+                  <td className="px-5 py-3 font-mono text-[13px]" style={{ color: C.navy }}>{l.ctrl}</td>
+                  <td className="px-5 py-3" style={{ color: C.ink }}>{l.customer || "—"}</td>
+                  <td className="px-5 py-3 text-xs" style={{ color: C.sub }}>{l.actorName || "—"}</td>
+                  <td className="px-5 py-3 text-xs font-mono" style={{ color: C.ink }}>${(l.usd || 0).toFixed(4)}（約¥{Math.ceil(l.jpyEstimate || 0)}）</td>
+                </tr>
+              ))}
+              {aiCostLogs.length === 0 && <tr><td colSpan={5} className="px-5 py-8 text-center text-sm" style={{ color: C.sub }}>AI読み取りの実行履歴はまだありません。</td></tr>}
             </tbody>
           </table>
           <div className="px-5 py-3 text-[11px]" style={{ color: C.sub }}>

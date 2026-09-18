@@ -62,5 +62,11 @@ service cloud.firestore {
       // 先方からのメッセージ送信時は未ログインのまま1件だけ書き込む（内容はメッセージ送信の記録に限定）
       allow create: if isStaff() || request.resource.data.action == 'メッセージ送信';
     }
+
+    // ---------------- aiCostLogs（AI読み取りコストの全履歴。案件を削除しても残す） ----------------
+    match /aiCostLogs/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+    }
   }
 }

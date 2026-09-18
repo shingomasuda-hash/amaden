@@ -174,6 +174,28 @@ export async function logAiCost(theCase, actorName, cost) {
   });
   await logActivity(actorName, "AI読み取りコスト（概算）", theCase.ctrl, "—", usdText);
   await pushSystemNote(theCase, `AI読み取りを実行しました（概算コスト ${usdText}）`);
+  // 案件を削除すると cases ドキュメント自体（＝上の累計フィールド）は消えてしまうため、
+  // 削除後も費用の履歴だけは残るよう、案件とは別のコレクションにも構造化して記録しておく。
+  // 管理者画面の「費用履歴」タブはここを集計元にする。
+  await addDoc(collection(db, "aiCostLogs"), {
+    at: serverTimestamp(), ctrl: theCase.ctrl, customer: theCase.customer || "", actorName: actorName || "",
+    usd: cost.usd, jpyEstimate: cost.jpyEstimate, inputTok: cost.inputTok || 0, outputTok: cost.outputTok || 0,
+  });
+}
+
+/* AI読み取りコストの全履歴（案件を削除しても消えない）。管理者画面「費用履歴」タブ用。 */
+export function useAiCostLogs() {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    const q = query(collection(db, "aiCostLogs"), orderBy("at", "desc"), limit(1000));
+    const unsub = onSnapshot(q, (snap) => {
+      setLogs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setLoading(false);
+    });
+    return unsub;
+  }, []);
+  return { logs, loading };
 }
 
 /* 先方ポータル：トークンから案件情報を取得（未ログインで呼ばれる） */

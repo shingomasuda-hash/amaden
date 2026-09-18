@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { firebaseReady } from "./lib/firebase";
 import { useAuth } from "./lib/useAuth";
-import { useCases, useProfiles, useAuditLogs, useThreadCounts, logActivity, pushSystemNote, createCase, toggleCaseLink, logAiCost, saveExtraction } from "./lib/useData";
+import { useCases, useProfiles, useAuditLogs, useAiCostLogs, useThreadCounts, logActivity, pushSystemNote, createCase, toggleCaseLink, logAiCost, saveExtraction } from "./lib/useData";
 import { extractCase } from "./lib/extract";
 import { C } from "./lib/theme";
 import { FileSpreadsheet, ShieldCheck, LogOut, Info, LayoutDashboard, ChevronLeft } from "./lib/icons";
@@ -54,6 +54,7 @@ function StaffApp() {
   const { cases } = useCases();
   const { profiles } = useProfiles();
   const { logs } = useAuditLogs();
+  const { logs: aiCostLogs } = useAiCostLogs();
   const threadCounts = useThreadCounts(cases);
 
   const [screen, setScreenRaw] = useState("dashboard");
@@ -305,7 +306,7 @@ function StaffApp() {
         )}
         {screen === "admin" && isAdmin && (
           <AdminPanel profiles={profiles} cases={cases} threadCounts={threadCounts} currentUser={currentUser}
-            onBack={goHome} onOpenChat={openChat} onCopyLink={copyLink} onToggleLink={handleToggleLink} logs={logs} toast={toast} />
+            onBack={goHome} onOpenChat={openChat} onCopyLink={copyLink} onToggleLink={handleToggleLink} logs={logs} aiCostLogs={aiCostLogs} toast={toast} />
         )}
         {screen === "casechat" && (
           <CaseChatScreen theCase={activeCaseLive} currentUser={currentUser} onCopyLink={copyLink} onToggleLink={handleToggleLink} onBack={goHome} />
